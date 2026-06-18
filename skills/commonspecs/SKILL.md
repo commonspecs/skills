@@ -50,6 +50,9 @@ curl -sS -X POST "$API/v1/lookup" \
 `{"url":"https://…"}` or `{"ean":"7340028912345"}` are the other two forms. Optional:
 `exclude_low_confidence: true` to drop the low-confidence bucket.
 
+If the user pastes a bare 8–14 digit number (EAN-8, UPC-A, EAN-13, or GTIN-14), treat it
+as an `ean` and look it up that way before trying to parse it as a model.
+
 Response `status`:
 - `hit` — one product. Body: `product`, `quality_score` (0–100 or null), `fields`,
   `low_confidence_fields`, `enrichment_opportunities` (see below).
@@ -127,7 +130,8 @@ not exposed; reason about trade-offs from the facts themselves.
 One submission carries a `fields` array. Identify the product by exactly one of
 `url` / `ean` / `brand`+`model` (brand+model creates the product if new). Each field
 should carry the `source_url` and a verbatim `snippet` you read the value from — that
-evidence is what earns confidence.
+evidence is what earns confidence. `source` is `web` (default, a web page) or `label` (a
+physical label — see below).
 
 ```bash
 curl -sS -X POST "$API/v1/contributions" \
@@ -145,7 +149,8 @@ curl -sS -X POST "$API/v1/contributions" \
 
 Physical world: if the user shows a photo of a label/product, **read the values and the
 EAN yourself and send only the extracted values** — the photo never leaves the user's
-machine. Look the product up by `ean` first, then contribute the missing `fields`.
+machine. Look the product up by `ean` first, then contribute the missing `fields` with
+`"source": "label"`.
 
 ## Reading a response
 
