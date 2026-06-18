@@ -9,7 +9,7 @@ has verified.
 ## Install
 
 ```bash
-npx skills add commonspecs/commonspecs-skill
+npx skills add commonspecs/skills
 ```
 
 Works with Claude Code, Cursor, and the other agents the [`skills`](https://skills.sh) CLI
