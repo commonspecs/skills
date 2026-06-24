@@ -67,9 +67,11 @@ a single request may override them ("ignore locality this time"). This works eve
 empty: the user can hand you candidates (specs + price + shop) and you rank them against these
 goals directly, then contribute the durable facts back (see `submit_contribution`).
 
-**Choosing `country_code` per call.** The `PL` in the examples below is illustrative — never
-hardcode it. Resolve the market for each read in this order: (1) the market the user's request is
-about ("price in Germany" → `DE`); (2) otherwise `default_country` / `COMMONSPECS_DEFAULT_COUNTRY`.
+**Choosing `country_code` per call.** commonspecs is global: any country worldwide is valid
+(ISO 3166-1 alpha-2) — there is no fixed market list, and `PL` in the examples below is just
+illustrative, never a hardcode. Resolve the market for each read in this order: (1) the market the
+user's request is about ("price in Germany" → `DE`, "in Japan" → `JP`); (2) otherwise
+`default_country` / `COMMONSPECS_DEFAULT_COUNTRY`.
 If neither is known, ask once, or omit `country_code` — but note the cost of omitting: `lookup`
 returns `top_offer: null` and `get_offers` returns offers across all markets mixed together.
 Submit an `offer` with the country the price was actually observed in, which is not necessarily the
