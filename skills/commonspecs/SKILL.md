@@ -32,14 +32,42 @@ Configuration comes from environment variables (or `~/.commonspecs/config.json`)
 
 If `COMMONSPECS_API_TOKEN` is unset, tell the user to set it and stop — do not call the API.
 
-## First run — capture the user's buying goals
+`~/.commonspecs/config.json` holds the **token only** (plus optional `api_url` / `default_country`
+override). Buying preferences are **not** kept here — they live server-side on the user's account
+(see "First run" below), so the same preferences apply on the web, in this skill, and over MCP.
+
+## First run — load the user's buying preferences
 
 The pick ("which of these should I buy?") is YOUR judgement, made from the facts the API returns
-weighed against what the user actually cares about. Capture that once, up front — the API does not.
+weighed against what the user actually cares about — their buying preferences. These live
+**server-side** on the user's account (set during onboarding at commonspecs.com/account, or by you
+here), so they follow the user across devices and clients. The local config file holds only the
+token, never preferences.
 
-Before your first `lookup`/`search`/`rankings` call, read `~/.commonspecs/config.json` and check
-for `quality_strategy` and `locality_strategy`. If either is missing, ask the user (one short
-message, not a form), then persist their answers to `~/.commonspecs/config.json`:
+Before your first `lookup`/`search`/`rankings` call, fetch them (see `get_preferences`):
+
+```bash
+curl -sS "$API/v1/user/preferences" -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
+```
+
+The response is the resolved preferences (every field defaulted) plus `configured` — whether the
+user has ever saved them:
+
+```json
+{ "quality_strategy": "cost_over_time", "locality_strategy": "local_bonus",
+  "default_country": "PL", "contribution_mode": "automatic", "language": "en",
+  "configured": true }
+```
+
+- **`configured: true`** → use `quality_strategy`, `locality_strategy`, `default_country` and
+  `contribution_mode` as the DEFAULT context for ranking and for explaining recommendations.
+- **`configured: false`** → the user hasn't onboarded yet. Ask once (one short message, not a form)
+  for their **quality_strategy** and **locality_strategy** (and **default_country** if you don't
+  already know it), then SAVE them server-side with a PUT (see `set_preferences`). Or, if they'd
+  rather not decide now, proceed with the returned defaults and mention they can set them any time
+  at commonspecs.com/account.
+
+The fields:
 
 - **quality_strategy** — how to trade quality against price:
   - `quality_first` — maximise quality; price is secondary.
@@ -48,32 +76,22 @@ message, not a form), then persist their answers to `~/.commonspecs/config.json`
   - `local_bonus` — favour local products/shops, but never over clearly better quality.
   - `global_best` — no locality bonus; the best offer worldwide wins.
   - `local_only` — restrict to locally available products/shops, even at the cost of choice.
+- **default_country** — ISO 3166-1 alpha-2; scopes prices and availability. The server applies it
+  to `lookup` offers automatically when you omit `country_code`.
+- **contribution_mode** — `automatic` (default) | `confirm` | `disabled`: whether you may submit
+  specs and offers you extract back to the shared base silently, with a one-tap confirm, or not.
 
-While you are at it, if `default_country` is unset, ask for it (ISO 3166-1 alpha-2, e.g. `PL`) —
-it scopes prices and availability. Optionally capture `contribution_mode`
-(`automatic` default | `confirm` | `disabled`): whether you may submit specs and offers you
-extract back to the shared base silently, with a one-tap confirm, or not at all.
-
-Persist the answers, for example:
-
-```json
-{ "api_token": "cs_live_…", "default_country": "PL",
-  "quality_strategy": "cost_over_time", "locality_strategy": "local_bonus",
-  "contribution_mode": "automatic" }
-```
-
-On later runs, read these as the DEFAULT context for ranking and for explaining recommendations;
-a single request may override them ("ignore locality this time"). This works even when the base is
-empty: the user can hand you candidates (specs + price + shop) and you rank them against these
-goals directly, then contribute the durable facts back (see `submit_contribution`).
+A single request may override any of these ("ignore locality this time"). This works even when the
+base is empty: the user can hand you candidates (specs + price + shop) and you rank them against
+these goals directly, then contribute the durable facts back (see `submit_contribution`).
 
 **Choosing `country_code` per call.** commonspecs is global: any country worldwide is valid
 (ISO 3166-1 alpha-2) — there is no fixed market list, and `PL` in the examples below is just
 illustrative, never a hardcode. Resolve the market for each read in this order: (1) the market the
-user's request is about ("price in Germany" → `DE`, "in Japan" → `JP`); (2) otherwise
-`default_country` / `COMMONSPECS_DEFAULT_COUNTRY`.
-If neither is known, ask once, or omit `country_code` — but note the cost of omitting: `lookup`
-returns `top_offer: null` and `get_offers` returns offers across all markets mixed together.
+user's request is about ("price in Germany" → `DE`, "in Japan" → `JP`); (2) otherwise the
+`default_country` from the user's saved preferences (or `COMMONSPECS_DEFAULT_COUNTRY`).
+If neither is known you may omit `country_code`: for `lookup` the server falls back to the saved
+`default_country` (if any), otherwise `top_offer` is null; `get_offers` then mixes markets.
 Submit an `offer` with the country the price was actually observed in, which is not necessarily the
 user's market (a `DE` shop shipping to `PL` is a `PL`-destination offer).
 
@@ -191,6 +209,32 @@ truth, and never disputed against each other. Optional `country_code` restricts 
 Price is deliberately **not** in `quality_score`: the score measures the thing as a thing.
 Value-per-money is yours to compute — weigh `landed_price` against the spec quality and the
 user's `quality_strategy`/`locality_strategy`.
+
+### get_preferences — the user's saved buying preferences
+
+```bash
+curl -sS "$API/v1/user/preferences" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
+```
+
+Returns `quality_strategy`, `locality_strategy`, `default_country`, `contribution_mode`, `language`
+and `configured` (whether the user has ever saved them). Scoped to the token's own user. Read this
+on first run (see "First run" above) and use the values as your default ranking/justification
+context; a single request may still override them.
+
+### set_preferences — save the user's buying preferences
+
+```bash
+curl -sS -X PUT "$API/v1/user/preferences" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "quality_strategy": "cost_over_time", "locality_strategy": "local_bonus", "default_country": "PL" }'
+```
+
+Send only the keys you want to change; the rest are left as-is. Use this when `configured` is
+`false` (first-run onboarding) or when the user asks to change a preference. Values are validated
+server-side; `default_country` is ISO 3166-1 alpha-2 (or `null` to clear). Returns the updated
+preferences with `configured: true`.
 
 ### submit_contribution — add specs and/or a price you have verified
 
