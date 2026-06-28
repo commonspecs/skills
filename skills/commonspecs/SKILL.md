@@ -40,9 +40,9 @@ override). Buying preferences are **not** kept here — they live server-side on
 
 The pick ("which of these should I buy?") is YOUR judgement, made from the facts the API returns
 weighed against what the user actually cares about — their buying preferences. These live
-**server-side** on the user's account (set during onboarding at commonspecs.com/account, or by you
-here), so they follow the user across devices and clients. The local config file holds only the
-token, never preferences.
+**server-side** on the user's account, chosen in the onboarding panel at commonspecs.com/account,
+so they follow the user across devices and clients. You **read** them; you don't ask for them and
+you don't set them — the account panel owns that. The local config file holds only the token.
 
 Before your first `lookup`/`search`/`rankings` call, fetch them (see `get_preferences`):
 
@@ -61,11 +61,13 @@ user has ever saved them:
 
 - **`configured: true`** → use `quality_strategy`, `locality_strategy`, `default_country` and
   `contribution_mode` as the DEFAULT context for ranking and for explaining recommendations.
-- **`configured: false`** → the user hasn't onboarded yet. Ask once (one short message, not a form)
-  for their **quality_strategy** and **locality_strategy** (and **default_country** if you don't
-  already know it), then SAVE them server-side with a PUT (see `set_preferences`). Or, if they'd
-  rather not decide now, proceed with the returned defaults and mention they can set them any time
-  at commonspecs.com/account.
+- **`configured: false`** → the user hasn't set preferences yet. Don't ask — just use the returned
+  defaults (`cost_over_time` + `local_bonus`) and, once, mention they can choose their preferences
+  at commonspecs.com/account so future picks match what they care about.
+
+If the user asks to *change* a preference, point them to commonspecs.com/account — that panel is
+where preferences are set. For a one-off, honour a per-request override in conversation ("ignore
+locality this time") without changing anything stored.
 
 The fields:
 
@@ -218,23 +220,10 @@ curl -sS "$API/v1/user/preferences" \
 ```
 
 Returns `quality_strategy`, `locality_strategy`, `default_country`, `contribution_mode`, `language`
-and `configured` (whether the user has ever saved them). Scoped to the token's own user. Read this
-on first run (see "First run" above) and use the values as your default ranking/justification
-context; a single request may still override them.
-
-### set_preferences — save the user's buying preferences
-
-```bash
-curl -sS -X PUT "$API/v1/user/preferences" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{ "quality_strategy": "cost_over_time", "locality_strategy": "local_bonus", "default_country": "PL" }'
-```
-
-Send only the keys you want to change; the rest are left as-is. Use this when `configured` is
-`false` (first-run onboarding) or when the user asks to change a preference. Values are validated
-server-side; `default_country` is ISO 3166-1 alpha-2 (or `null` to clear). Returns the updated
-preferences with `configured: true`.
+and `configured` (whether the user has set them). Scoped to the token's own user. Read this on
+first run (see "First run" above) and use the values as your default ranking/justification context;
+a single request may still override them. This is read-only — preferences are set in the account
+panel at commonspecs.com/account, not here.
 
 ### submit_contribution — add specs and/or a price you have verified
 
