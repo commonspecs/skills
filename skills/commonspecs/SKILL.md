@@ -43,7 +43,7 @@ resolved server-side:
 ```json
 "context": {
   "user_goal": "Optimise for cost of use over the product's lifetime, not the lowest sticker price. Favour local sellers when quality is comparable.",
-  "user_market": "PL",
+  "user_market": "US",
   "contribution_mode": "automatic"
 }
 ```
@@ -63,12 +63,12 @@ this time", "price in Germany") without changing anything stored.
 (`user_market`) by the server: `search` returns products available where the user buys, `get_offers`
 prices for that market, `lookup` prices its `top_offer` there. Pass `country_code` **only to
 override** for a different market the request explicitly names ("price in Japan" → `JP`). Submit an
-`offer` with the country the price was actually observed in, not necessarily the user's market (a
-`DE` shop shipping to `PL` is a `PL`-destination offer).
+`offer` tagged with the country the price ships to, not necessarily the user's market.
 
 ## Tools
 
-All calls send `Authorization: Bearer $COMMONSPECS_API_TOKEN`.
+Every call needs the `Authorization: Bearer $COMMONSPECS_API_TOKEN` header; it's omitted from the
+examples below for brevity.
 
 ### lookup_product — fetch one product's specs
 
@@ -76,14 +76,13 @@ Resolve a product by **exactly one** of: `url`, `ean`, or `brand` + `model`.
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/lookup" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"brand":"Nudie","model":"Gritty Jackson"}'
 ```
 
 `{"url":"https://…"}` or `{"ean":"7340028912345"}` are the other two forms. Optional:
 `exclude_low_confidence: true` to drop the low-confidence bucket. `top_offer` is priced in the
-user's saved market automatically; pass `country_code` only to override it for a different market.
+user's saved market automatically.
 
 If the user pastes a bare 8–14 digit number (EAN-8, UPC-A, EAN-13, or GTIN-14), treat it
 as an `ean` and look it up that way before trying to parse it as a model.
@@ -104,18 +103,16 @@ it with `submit_contribution`; `ask_user` → ask the user first; `never` → do
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/search" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query":"raw denim","category":"jeans-denim"}'
 ```
 
 Matches on brand name and model. **Results are scoped to the user's market** — only products
 available where they buy (every locality setting; the locality choice steers which seller/origin you
-prefer, not availability). Optional `category` (slug) filter, `limit` (≤20), and `country_code` to
-override the market. Returns `results` ranked by
-`quality_score` descending (best specs first; products with thin data sort last), each with the same
-`quality_score` field as a lookup. Use this when the user asks "what should I buy in <category>"
-rather than naming one product.
+prefer, not availability). Optional `category` (slug) filter, `limit` (≤20), and `country_code`.
+Returns `results` ranked by `quality_score` descending (best specs first; products with thin data
+sort last). Use this when the user asks "what should I buy in <category>" rather than naming one
+product.
 
 ### compare_products — side-by-side on hard specs
 
@@ -123,7 +120,6 @@ Use when the user names **two or more** specific products to choose between.
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/compare" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"product_ids":["<id1>","<id2>"]}'
 ```
@@ -140,8 +136,7 @@ fitness-for-purpose judgement is yours to make from the data.
 Use when the user asks "what are the best X" without naming a product.
 
 ```bash
-curl -sS "https://api.commonspecs.com/v1/categories/jeans-denim/rankings?country=PL&limit=20" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
+curl -sS "https://api.commonspecs.com/v1/categories/jeans-denim/rankings?country=PL&limit=20"
 ```
 
 Returns `results` ranked by `quality_score` (each with a `rank`). `ranking_scope` is
@@ -153,15 +148,13 @@ individual lookups when the user is browsing a category.
 ### get_product — fetch by id
 
 ```bash
-curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
+curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID"
 ```
 
 ### get_quality_score — overall quality (0–100)
 
 ```bash
-curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/quality-score" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
+curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/quality-score"
 ```
 
 Returns `total_score` (0–100, or `null` if the category isn't scored yet) and
@@ -173,8 +166,7 @@ not exposed; reason about trade-offs from the facts themselves.
 ### get_offers — prices for a product
 
 ```bash
-curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/offers" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
+curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/offers"
 ```
 
 Returns `offers`: dated price observations, recency-sorted (best price today first) and
@@ -186,8 +178,8 @@ offer **ships to**), `channel` (`online`/`in_store`), `price`, `currency`, `ship
 Use `merchant_country` to honour the user's locality goal: `local_only` already returns only domestic
 shops; for `local_bonus`, prefer offers whose `merchant_country` matches the user's market (it also
 decides which tax regime applies). Many prices across shops/countries are all true at once — they are
-observations, not a single truth, and never disputed against each other. Scoped to the user's saved
-market by default; pass `?country_code=` only to override it for a different market.
+observations, not a single truth, and never disputed against each other. Override the market scope
+with `?country_code=`.
 
 Price is deliberately **not** in `quality_score`: the score measures the thing as a thing.
 Value-per-money is yours to compute — weigh `landed_price` against the spec quality and the
@@ -204,7 +196,6 @@ from — that evidence is what earns confidence. `source` is `web` (default, a w
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/contributions" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "brand": "Nudie Jeans", "model": "Gritty Jackson", "source": "web",
@@ -224,7 +215,6 @@ to now), `source_url`. Send it alongside `fields` from the same fetch, or on its
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/contributions" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "brand": "Nudie Jeans", "model": "Gritty Jackson",
@@ -242,8 +232,8 @@ machine. Look the product up by `ean` first, then contribute the missing `fields
 
 ## Reading a response
 
-`quality_score` (0–100, or null) is the product's overall spec quality; pair it with
-`missing_fields` from `get_quality_score` when the user asks "is this good?". Each field in
+`quality_score` (0–100, or null) is the overall spec-quality number — see `get_quality_score`.
+Each field in
 `fields` / `low_confidence_fields` has `value`, `confidence` (0–1), `disputed`,
 `needs_corroboration`, and (when disputed) `alternate_claims`.
 
