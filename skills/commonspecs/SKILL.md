@@ -71,7 +71,7 @@ All calls send the `Authorization: Bearer $COMMONSPECS_API_TOKEN` header (shown 
 
 ### lookup_product — fetch one product's specs
 
-Resolve a product by **exactly one** of: `url`, `ean`, or `brand` + `model`.
+Resolve a product by **exactly one** of: `id`, `url`, `ean`, or `brand` + `model`.
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/lookup" \
@@ -80,18 +80,25 @@ curl -sS -X POST "https://api.commonspecs.com/v1/lookup" \
   -d '{"brand":"Nudie","model":"Gritty Jackson"}'
 ```
 
-`{"url":"https://…"}` or `{"ean":"7340028912345"}` are the other two forms. Optional:
+`{"url":"https://…"}` and `{"ean":"7340028912345"}` are the other handle forms. Optional:
 `exclude_low_confidence: true` to drop the low-confidence bucket. `top_offer` is priced in the
 user's saved market automatically.
+
+`{"id":"<uuid>"}` is the **drill-in**: when `search`, `compare`, or `get_rankings` returns a product
+`id` and the user picks one ("tell me about #2"), look it up by that `id` to pull its full specs. The
+`id` pins the exact variant — always one product, never `candidates`. You already hold whatever a
+prior lookup returned, so don't re-fetch the same product within a conversation; the only real fetch
+after a search/compare is that first specs pull, since those lists carry summaries, not specs.
 
 If the user pastes a bare 8–14 digit number (EAN-8, UPC-A, EAN-13, or GTIN-14), treat it
 as an `ean` and look it up that way before trying to parse it as a model.
 
 Response `status`:
-- `hit` — one product. Body: `product`, `quality_score` (0–100 or null), `top_offer`
+- `hit` — one product. Body: `product`, `quality_score` (0–100 or null), `missing_fields`
+  (spec fields whose absence holds the score back — what to contribute), `top_offer`
   (the recency-best price for `country_code`, or null), `fields`, `low_confidence_fields`,
   `enrichment_opportunities` (see below).
-- `candidates` — several variants matched (`candidates: [...]`); ask the user which, or look up by `url`/`ean`.
+- `candidates` — several variants matched (`candidates: [...]`); ask the user which, then look it up by that candidate's `id`.
 - `miss` — nothing found. Offer to contribute specs (`submit_contribution`).
 
 When `top_offer` is **null** (no offer on record in the user's market), report the specs but say
@@ -147,26 +154,6 @@ Returns `results` ranked by `quality_score` (each with a `rank`). `ranking_scope
 back but the ranking is the global score order. To bring price into a category browse, read
 offers per candidate with `get_offers` and weigh them yourself. Prefer this over many
 individual lookups when the user is browsing a category.
-
-### get_product — fetch by id
-
-```bash
-curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
-```
-
-### get_quality_score — overall quality (0–100)
-
-```bash
-curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/quality-score" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
-```
-
-Returns `total_score` (0–100, or `null` if the category isn't scored yet) and
-`missing_fields` — the spec fields whose absence is holding the score back. A lower score
-often means *thin data*, not a bad product; use `missing_fields` to decide what to
-contribute. The score is a single number on purpose — the per-field weighting behind it is
-not exposed; reason about trade-offs from the facts themselves.
 
 ### get_offers — prices for a product
 
@@ -240,8 +227,10 @@ machine. Look the product up by `ean` first, then contribute the missing `fields
 
 ## Reading a response
 
-`quality_score` (0–100, or null) is the overall spec-quality number — see `get_quality_score`.
-Each field in
+`quality_score` (0–100, or null) is the overall spec-quality number; `missing_fields` lists the
+specs whose absence holds it back (what to contribute). Both ride in every product response. A low
+score often means *thin data*, not a bad product, and the score is a single number on purpose — the
+per-field weighting isn't exposed, so reason about trade-offs from the facts themselves. Each field in
 `fields` / `low_confidence_fields` has `value`, `confidence` (0–1), `disputed`,
 `needs_corroboration`, and (when disputed) `alternate_claims`.
 
