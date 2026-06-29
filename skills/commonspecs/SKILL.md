@@ -95,6 +95,11 @@ Response `status`:
 - `candidates` — several variants matched (`candidates: [...]`); ask the user which, or look up by `url`/`ean`.
 - `miss` — nothing found. Offer to contribute specs (`submit_contribution`).
 
+When `top_offer` is **null** (no offer on record in the user's market), report the specs but say
+that **availability in the user's country still needs checking** — don't assert it's unavailable.
+If you then research a local price or availability, act on `contribution_mode`: `automatic` → submit
+it with `submit_contribution`; `ask_user` → ask the user first; `never` → don't submit.
+
 ### search_products — find products, best-scored first
 
 ```bash
@@ -105,8 +110,9 @@ curl -sS -X POST "https://api.commonspecs.com/v1/search" \
 ```
 
 Matches on brand name and model. **Results are scoped to the user's market** — only products
-available where they buy — unless their locality is `global_best`. Optional `category` (slug)
-filter, `limit` (≤20), and `country_code` to override the market. Returns `results` ranked by
+available where they buy (every locality setting; the locality choice steers which seller/origin you
+prefer, not availability). Optional `category` (slug) filter, `limit` (≤20), and `country_code` to
+override the market. Returns `results` ranked by
 `quality_score` descending (best specs first; products with thin data sort last), each with the same
 `quality_score` field as a lookup. Use this when the user asks "what should I buy in <category>"
 rather than naming one product.
