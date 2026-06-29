@@ -59,12 +59,12 @@ The user sets these on the site (commonspecs.com/account); you only **read** the
 them, never set them. A single request may still override them in conversation ("ignore locality
 this time", "price in Germany") without changing anything stored.
 
-**Picking the market per call.** commonspecs is global — any ISO country is valid, and `PL` in the
-examples below is illustrative, never a hardcode. Resolve it as: (1) the market the request names
-("in Japan" → `JP`); else (2) `user_market` from the context. If neither is known, omit
-`country_code`: the server falls back to the saved market, otherwise `top_offer` is null and
-`get_offers` mixes markets. Submit an `offer` with the country the price was actually observed in,
-not necessarily the user's market (a `DE` shop shipping to `PL` is a `PL`-destination offer).
+**The market is server-side — you don't pass it.** Reads are scoped to the user's saved market
+(`user_market`) by the server: `search` returns products available where the user buys, `get_offers`
+prices for that market, `lookup` prices its `top_offer` there. Pass `country_code` **only to
+override** for a different market the request explicitly names ("price in Japan" → `JP`). Submit an
+`offer` with the country the price was actually observed in, not necessarily the user's market (a
+`DE` shop shipping to `PL` is a `PL`-destination offer).
 
 ## Tools
 
@@ -82,8 +82,8 @@ curl -sS -X POST "https://api.commonspecs.com/v1/lookup" \
 ```
 
 `{"url":"https://…"}` or `{"ean":"7340028912345"}` are the other two forms. Optional:
-`exclude_low_confidence: true` to drop the low-confidence bucket, and `country_code`
-(ISO 3166-1 alpha-2) to get a `top_offer` for that market in the response.
+`exclude_low_confidence: true` to drop the low-confidence bucket. `top_offer` is priced in the
+user's saved market automatically; pass `country_code` only to override it for a different market.
 
 If the user pastes a bare 8–14 digit number (EAN-8, UPC-A, EAN-13, or GTIN-14), treat it
 as an `ean` and look it up that way before trying to parse it as a model.
@@ -104,10 +104,12 @@ curl -sS -X POST "https://api.commonspecs.com/v1/search" \
   -d '{"query":"raw denim","category":"jeans-denim"}'
 ```
 
-Matches on brand name and model. Optional `category` (slug) filter and `limit` (≤20).
-Returns `results` ranked by `quality_score` descending (best specs first; products with
-thin data sort last), each with the same `quality_score` field as a lookup. Use this when
-the user asks "what should I buy in <category>" rather than naming one product.
+Matches on brand name and model. **Results are scoped to the user's market** — only products
+available where they buy — unless their locality is `global_best`. Optional `category` (slug)
+filter, `limit` (≤20), and `country_code` to override the market. Returns `results` ranked by
+`quality_score` descending (best specs first; products with thin data sort last), each with the same
+`quality_score` field as a lookup. Use this when the user asks "what should I buy in <category>"
+rather than naming one product.
 
 ### compare_products — side-by-side on hard specs
 
@@ -165,7 +167,7 @@ not exposed; reason about trade-offs from the facts themselves.
 ### get_offers — prices for a product
 
 ```bash
-curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/offers?country_code=PL" \
+curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/offers" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
 ```
 
@@ -174,7 +176,8 @@ Returns `offers`: dated price observations, recency-sorted (best price today fir
 carries `merchant`, `country_code`, `channel` (`online`/`in_store`), `price`, `currency`,
 `shipping_cost`, `landed_price` (price + shipping), `availability_status`, and `observed_at`.
 Many prices across shops/countries are all true at once — they are observations, not a single
-truth, and never disputed against each other. Optional `country_code` restricts to one market.
+truth, and never disputed against each other. Scoped to the user's saved market by default; pass
+`?country_code=` only to override it for a different market.
 
 Price is deliberately **not** in `quality_score`: the score measures the thing as a thing.
 Value-per-money is yours to compute — weigh `landed_price` against the spec quality and the
