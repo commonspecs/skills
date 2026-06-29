@@ -1,12 +1,10 @@
 ---
 name: commonspecs
 description: >-
-  Look up engineering-grade product specifications with per-field confidence
-  (e.g. raw denim weight & weave, shoe construction, country of origin) plus
-  dated price offers, and contribute specs and prices you have verified. Use
-  when the user asks what a product is actually made of, how two products
-  compare on hard specs, what it costs / where to buy it, or to record specs or
-  a price read off a page or physical label.
+  Find quality products by their specs, with price offers and availability
+  in your region. Use when the user asks for the best product to buy in a
+  category, what a product is actually made of, how products compare and which
+  is better, or what it costs / where to buy it.
 license: MIT
 metadata:
   homepage: https://commonspecs.com
@@ -22,92 +20,62 @@ honestly — including how trustworthy each one is.
 
 ## Setup
 
-Configuration comes from environment variables (or `~/.commonspecs/config.json`):
+The skill needs one environment variable — your API token (shape `cs_live_…`, sent as
+`Authorization: Bearer`) — read from the project root `.env` (or your shell):
 
-| Variable | Required | Default | Meaning |
-| --- | --- | --- | --- |
-| `COMMONSPECS_API_TOKEN` | yes | — | API token, shape `cs_live_…`. Sent as `Authorization: Bearer`. |
-| `COMMONSPECS_API_URL` | no | `https://api.commonspecs.com` | API base URL. |
-| `COMMONSPECS_DEFAULT_COUNTRY` | no | — | ISO 3166-1 alpha-2 (e.g. `PL`) for country-scoped reads. |
+```
+COMMONSPECS_API_TOKEN=cs_live_…
+```
 
 If `COMMONSPECS_API_TOKEN` is unset, tell the user to set it and stop — do not call the API.
 
-`~/.commonspecs/config.json` holds the **token only** (plus optional `api_url` / `default_country`
-override). Buying preferences are **not** kept here — they live server-side on the user's account
-(see "First run" below), so the same preferences apply on the web, in this skill, and over MCP.
+The token lives **only** in the environment: reference it as `$COMMONSPECS_API_TOKEN` and let the
+shell expand it when calling the API — never read, echo, or otherwise pull the token value into the
+model's context.
 
-## First run — load the user's buying preferences
+## The user's buying goals (every read carries them)
 
-The pick ("which of these should I buy?") is YOUR judgement, made from the facts the API returns
-weighed against what the user actually cares about — their buying preferences. These live
-**server-side** on the user's account, chosen in the onboarding panel at commonspecs.com/account,
-so they follow the user across devices and clients. You **read** them; you don't ask for them and
-you don't set them — the account panel owns that. The local config file holds only the token.
-
-Before your first `lookup`/`search`/`rankings` call, fetch them (see `get_preferences`):
-
-```bash
-curl -sS "$API/v1/user/preferences" -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
-```
-
-The response is the resolved preferences (every field defaulted) plus `configured` — whether the
-user has ever saved them:
+The pick — "which of these should I buy?" — is YOUR judgement: the facts the API returns, weighed
+against what the user is optimising for. You don't fetch or store that separately. **Every read
+that returns a product or offers carries a `context` block** with the user's standing goals,
+resolved server-side:
 
 ```json
-{ "quality_strategy": "cost_over_time", "locality_strategy": "local_bonus",
-  "default_country": "PL", "contribution_mode": "automatic", "language": "en",
-  "configured": true }
+"context": {
+  "user_goal": "Optimise for cost of use over the product's lifetime, not the lowest sticker price. Favour local sellers when quality is comparable.",
+  "user_market": "PL",
+  "contribution_mode": "automatic"
+}
 ```
 
-- **`configured: true`** → use `quality_strategy`, `locality_strategy`, `default_country` and
-  `contribution_mode` as the DEFAULT context for ranking and for explaining recommendations.
-- **`configured: false`** → the user hasn't set preferences yet. Don't ask — just use the returned
-  defaults (`cost_over_time` + `local_bonus`) and, once, mention they can choose their preferences
-  at commonspecs.com/account so future picks match what they care about.
+- **`user_goal`** — a ready-to-apply directive: rank and explain recommendations by it. It's prose
+  meant to be applied, not a setting to decode.
+- **`user_market`** — ISO 3166-1 alpha-2 country (or null) the user buys in; scope prices and
+  availability to it.
+- **`contribution_mode`** — `automatic` (submit extracted specs/offers silently) · `ask_user`
+  (one-tap confirm first) · `never` (don't submit). Respect it before any `submit_contribution`.
 
-If the user asks to *change* a preference, point them to commonspecs.com/account — that panel is
-where preferences are set. For a one-off, honour a per-request override in conversation ("ignore
-locality this time") without changing anything stored.
+The user sets these on the site (commonspecs.com/account); you only **read** them — never ask for
+them, never set them. A single request may still override them in conversation ("ignore locality
+this time", "price in Germany") without changing anything stored.
 
-The fields:
-
-- **quality_strategy** — how to trade quality against price:
-  - `quality_first` — maximise quality; price is secondary.
-  - `cost_over_time` — prefer the best cost of use over time, not the lowest sticker price.
-- **locality_strategy** — whether to favour local sellers:
-  - `local_bonus` — favour local products/shops, but never over clearly better quality.
-  - `global_best` — no locality bonus; the best offer worldwide wins.
-  - `local_only` — restrict to locally available products/shops, even at the cost of choice.
-- **default_country** — ISO 3166-1 alpha-2; scopes prices and availability. The server applies it
-  to `lookup` offers automatically when you omit `country_code`.
-- **contribution_mode** — `automatic` (default) | `confirm` | `disabled`: whether you may submit
-  specs and offers you extract back to the shared base silently, with a one-tap confirm, or not.
-
-A single request may override any of these ("ignore locality this time"). This works even when the
-base is empty: the user can hand you candidates (specs + price + shop) and you rank them against
-these goals directly, then contribute the durable facts back (see `submit_contribution`).
-
-**Choosing `country_code` per call.** commonspecs is global: any country worldwide is valid
-(ISO 3166-1 alpha-2) — there is no fixed market list, and `PL` in the examples below is just
-illustrative, never a hardcode. Resolve the market for each read in this order: (1) the market the
-user's request is about ("price in Germany" → `DE`, "in Japan" → `JP`); (2) otherwise the
-`default_country` from the user's saved preferences (or `COMMONSPECS_DEFAULT_COUNTRY`).
-If neither is known you may omit `country_code`: for `lookup` the server falls back to the saved
-`default_country` (if any), otherwise `top_offer` is null; `get_offers` then mixes markets.
-Submit an `offer` with the country the price was actually observed in, which is not necessarily the
-user's market (a `DE` shop shipping to `PL` is a `PL`-destination offer).
+**Picking the market per call.** commonspecs is global — any ISO country is valid, and `PL` in the
+examples below is illustrative, never a hardcode. Resolve it as: (1) the market the request names
+("in Japan" → `JP`); else (2) `user_market` from the context. If neither is known, omit
+`country_code`: the server falls back to the saved market, otherwise `top_offer` is null and
+`get_offers` mixes markets. Submit an `offer` with the country the price was actually observed in,
+not necessarily the user's market (a `DE` shop shipping to `PL` is a `PL`-destination offer).
 
 ## Tools
 
-All calls send `Authorization: Bearer $COMMONSPECS_API_TOKEN`. Examples assume
-`API="$COMMONSPECS_API_URL"` (fall back to the default above).
+All calls send `Authorization: Bearer $COMMONSPECS_API_TOKEN`.
 
 ### lookup_product — fetch one product's specs
 
 Resolve a product by **exactly one** of: `url`, `ean`, or `brand` + `model`.
 
 ```bash
-curl -sS -X POST "$API/v1/lookup" \
+curl -sS -X POST "https://api.commonspecs.com/v1/lookup" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"brand":"Nudie","model":"Gritty Jackson"}'
@@ -130,7 +98,7 @@ Response `status`:
 ### search_products — find products, best-scored first
 
 ```bash
-curl -sS -X POST "$API/v1/search" \
+curl -sS -X POST "https://api.commonspecs.com/v1/search" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query":"raw denim","category":"jeans-denim"}'
@@ -146,7 +114,7 @@ the user asks "what should I buy in <category>" rather than naming one product.
 Use when the user names **two or more** specific products to choose between.
 
 ```bash
-curl -sS -X POST "$API/v1/compare" \
+curl -sS -X POST "https://api.commonspecs.com/v1/compare" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"product_ids":["<id1>","<id2>"]}'
@@ -164,7 +132,7 @@ fitness-for-purpose judgement is yours to make from the data.
 Use when the user asks "what are the best X" without naming a product.
 
 ```bash
-curl -sS "$API/v1/categories/jeans-denim/rankings?country=PL&limit=20" \
+curl -sS "https://api.commonspecs.com/v1/categories/jeans-denim/rankings?country=PL&limit=20" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
 ```
 
@@ -177,14 +145,14 @@ individual lookups when the user is browsing a category.
 ### get_product — fetch by id
 
 ```bash
-curl -sS "$API/v1/products/$PRODUCT_ID" \
+curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
 ```
 
 ### get_quality_score — overall quality (0–100)
 
 ```bash
-curl -sS "$API/v1/products/$PRODUCT_ID/quality-score" \
+curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/quality-score" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
 ```
 
@@ -197,7 +165,7 @@ not exposed; reason about trade-offs from the facts themselves.
 ### get_offers — prices for a product
 
 ```bash
-curl -sS "$API/v1/products/$PRODUCT_ID/offers?country_code=PL" \
+curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/offers?country_code=PL" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
 ```
 
@@ -210,20 +178,7 @@ truth, and never disputed against each other. Optional `country_code` restricts 
 
 Price is deliberately **not** in `quality_score`: the score measures the thing as a thing.
 Value-per-money is yours to compute — weigh `landed_price` against the spec quality and the
-user's `quality_strategy`/`locality_strategy`.
-
-### get_preferences — the user's saved buying preferences
-
-```bash
-curl -sS "$API/v1/user/preferences" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
-```
-
-Returns `quality_strategy`, `locality_strategy`, `default_country`, `contribution_mode`, `language`
-and `configured` (whether the user has set them). Scoped to the token's own user. Read this on
-first run (see "First run" above) and use the values as your default ranking/justification context;
-a single request may still override them. This is read-only — preferences are set in the account
-panel at commonspecs.com/account, not here.
+user's `user_goal` from the response `context`.
 
 ### submit_contribution — add specs and/or a price you have verified
 
@@ -235,7 +190,7 @@ from — that evidence is what earns confidence. `source` is `web` (default, a w
 `label` (a physical label — see below).
 
 ```bash
-curl -sS -X POST "$API/v1/contributions" \
+curl -sS -X POST "https://api.commonspecs.com/v1/contributions" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -255,7 +210,7 @@ An `offer` is a dated observation: `store` (a shop domain or URL — the store's
 to now), `source_url`. Send it alongside `fields` from the same fetch, or on its own:
 
 ```bash
-curl -sS -X POST "$API/v1/contributions" \
+curl -sS -X POST "https://api.commonspecs.com/v1/contributions" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -302,5 +257,5 @@ report a fact.
 ## Not yet available
 
 `flag_stale` (marking a price or fact out of date) is not exposed by the API yet. Don't
-fabricate calls to it — say the capability isn't live. Country-localized rankings are also
-deferred; rankings stay global (read `get_offers` per candidate to factor in price).
+fabricate calls to it — say the capability isn't live. (Country-localized rankings are also
+deferred — see `get_rankings`.)
