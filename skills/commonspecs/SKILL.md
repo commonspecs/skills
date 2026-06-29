@@ -1,10 +1,10 @@
 ---
 name: commonspecs
 description: >-
-  Find the best thing to buy in any category — a product or a service — by its
-  objective specs, with price offers and availability in your region. Use when
-  the user asks what to buy, what something is actually made of or includes, how
-  the options compare and which is better, or what it costs and where to buy it.
+  Find the best product or service to buy in any category, ranked by its
+  objective specs, with current prices and availability in your region. Use it
+  when someone asks what to buy, what something is really made of or includes,
+  how options compare, what it costs, or where to buy it.
 license: MIT
 metadata:
   homepage: https://commonspecs.com
