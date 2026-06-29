@@ -67,8 +67,7 @@ override** for a different market the request explicitly names ("price in Japan"
 
 ## Tools
 
-Every call needs the `Authorization: Bearer $COMMONSPECS_API_TOKEN` header; it's omitted from the
-examples below for brevity.
+All calls send the `Authorization: Bearer $COMMONSPECS_API_TOKEN` header (shown in each example below).
 
 ### lookup_product — fetch one product's specs
 
@@ -76,6 +75,7 @@ Resolve a product by **exactly one** of: `url`, `ean`, or `brand` + `model`.
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/lookup" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"brand":"Nudie","model":"Gritty Jackson"}'
 ```
@@ -103,6 +103,7 @@ it with `submit_contribution`; `ask_user` → ask the user first; `never` → do
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/search" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query":"raw denim","category":"jeans-denim"}'
 ```
@@ -120,6 +121,7 @@ Use when the user names **two or more** specific products to choose between.
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/compare" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"product_ids":["<id1>","<id2>"]}'
 ```
@@ -136,7 +138,8 @@ fitness-for-purpose judgement is yours to make from the data.
 Use when the user asks "what are the best X" without naming a product.
 
 ```bash
-curl -sS "https://api.commonspecs.com/v1/categories/jeans-denim/rankings?country=PL&limit=20"
+curl -sS "https://api.commonspecs.com/v1/categories/jeans-denim/rankings?country=PL&limit=20" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
 ```
 
 Returns `results` ranked by `quality_score` (each with a `rank`). `ranking_scope` is
@@ -148,13 +151,15 @@ individual lookups when the user is browsing a category.
 ### get_product — fetch by id
 
 ```bash
-curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID"
+curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
 ```
 
 ### get_quality_score — overall quality (0–100)
 
 ```bash
-curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/quality-score"
+curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/quality-score" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
 ```
 
 Returns `total_score` (0–100, or `null` if the category isn't scored yet) and
@@ -166,7 +171,8 @@ not exposed; reason about trade-offs from the facts themselves.
 ### get_offers — prices for a product
 
 ```bash
-curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/offers"
+curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/offers" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
 ```
 
 Returns `offers`: dated price observations, recency-sorted (best price today first) and
@@ -196,6 +202,7 @@ from — that evidence is what earns confidence. `source` is `web` (default, a w
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/contributions" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "brand": "Nudie Jeans", "model": "Gritty Jackson", "source": "web",
@@ -215,6 +222,7 @@ to now), `source_url`. Send it alongside `fields` from the same fetch, or on its
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/contributions" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "brand": "Nudie Jeans", "model": "Gritty Jackson",
