@@ -179,11 +179,15 @@ curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/offers" \
 
 Returns `offers`: dated price observations, recency-sorted (best price today first) and
 **never hidden by age** — a week-old price still shows, just lower in the order. Each offer
-carries `merchant`, `country_code`, `channel` (`online`/`in_store`), `price`, `currency`,
-`shipping_cost`, `landed_price` (price + shipping), `availability_status`, and `observed_at`.
-Many prices across shops/countries are all true at once — they are observations, not a single
-truth, and never disputed against each other. Scoped to the user's saved market by default; pass
-`?country_code=` only to override it for a different market.
+carries `merchant`, `merchant_country` (where the **shop** is based), `country_code` (where the
+offer **ships to**), `channel` (`online`/`in_store`), `price`, `currency`, `shipping_cost`,
+`landed_price` (price + shipping), `availability_status`, and `observed_at`. `merchant_country` ≠
+`country_code` — a `DE` shop shipping to `PL` is `merchant_country: "DE"`, `country_code: "PL"`.
+Use `merchant_country` to honour the user's locality goal: `local_only` already returns only domestic
+shops; for `local_bonus`, prefer offers whose `merchant_country` matches the user's market (it also
+decides which tax regime applies). Many prices across shops/countries are all true at once — they are
+observations, not a single truth, and never disputed against each other. Scoped to the user's saved
+market by default; pass `?country_code=` only to override it for a different market.
 
 Price is deliberately **not** in `quality_score`: the score measures the thing as a thing.
 Value-per-money is yours to compute — weigh `landed_price` against the spec quality and the
