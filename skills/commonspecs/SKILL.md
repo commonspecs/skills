@@ -112,15 +112,23 @@ it with `submit_contribution`; `ask_user` → ask the user first; `never` → do
 curl -sS -X POST "https://api.commonspecs.com/v1/search" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"query":"raw denim","category":"jeans-denim"}'
+  -d '{"query":"raw denim"}'
 ```
 
-Matches on brand name and model. **Results are scoped to the user's market** — only products
-available where they buy (every locality setting; the locality choice steers which seller/origin you
-prefer, not availability). Optional `category` (slug) filter, `limit` (≤20), and `country_code`.
-Returns `results` ranked by `quality_score` descending (best specs first; products with thin data
-sort last). Use this when the user asks "what should I buy in <category>" rather than naming one
-product.
+Fuzzy match on brand name and model — typo-tolerant, so a near-miss spelling still finds the product.
+**Results are scoped to the user's market** — only products available where they buy (every locality
+setting; the locality choice steers which seller/origin you prefer, not availability). Optional
+`category` (slug) filter, `limit` (≤20), and `country_code`. Returns `results` ranked by
+`quality_score` descending (best specs first; products with thin data sort last). Use this when the
+user asks "what should I buy in <category>" rather than naming one product.
+
+**Category slugs come from the response — never guess one.** Every result set carries
+`matched_categories`: the canonical slug(s) the free-text query resolved to. That is where you get a
+slug to pass as the `category` filter here or to `get_rankings` — do not invent or hardcode it (a
+wrong slug is a 404, not a fuzzy match). When nothing matches, the response is a miss instead —
+`count: 0` with `did_you_mean` (the nearest category slugs) plus a seed prompt — so offer those
+nearby categories, or contribute the missing product/category with `submit_contribution`. There is no
+endpoint that lists the whole catalog; category discovery is always per-query through these fields.
 
 ### compare_products — side-by-side on hard specs
 
@@ -153,7 +161,9 @@ Returns `results` ranked by `quality_score` (each with a `rank`). `ranking_scope
 `global` for now — country-localized rankings are deferred, so a `country_code` is echoed
 back but the ranking is the global score order. To bring price into a category browse, read
 offers per candidate with `get_offers` and weigh them yourself. Prefer this over many
-individual lookups when the user is browsing a category.
+individual lookups when the user is browsing a category. The slug in the path must be a real
+category — take it from a prior `search`'s `matched_categories`, never guess it (an unknown slug
+returns 404, not a near match).
 
 ### get_offers — prices for a product
 
