@@ -60,35 +60,38 @@ them, never set them. A single request may still override them in conversation (
 this time", "price in Germany") without changing anything stored.
 
 **The market is server-side — you don't pass it.** Reads are scoped to the user's saved market
-(`user_market`) by the server: `search` returns products available where the user buys, `get_offers`
-prices for that market, `lookup` prices its `top_offer` there. Pass `country_code` **only to
-override** for a different market the request explicitly names ("price in Japan" → `JP`). Submit an
-`offer` tagged with the country the price ships to, not necessarily the user's market.
+(`user_market`) by the server: `search` returns products available where the user buys, and
+`get_product` returns a product's specs with its `offers` priced for that market. Pass `country_code`
+**only to override** for a different market the request explicitly names ("price in Japan" → `JP`).
+Submit an `offer` tagged with the country the price ships to, not necessarily the user's market.
 
 ## Tools
 
 All calls send the `Authorization: Bearer $COMMONSPECS_API_TOKEN` header (shown in each example below).
 
-### lookup_product — fetch one product's specs
+### get_product — one product's specs and offers
 
-Resolve a product by **exactly one** of: `id`, `url`, `ean`, or `brand` + `model`.
+Drill into one known product by **exactly one** exact key: `id`, `url`, or `ean`. Returns its
+engineering-grade specs (with per-field confidence) **and** its price `offers`, in a single call.
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/lookup" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"brand":"Nudie","model":"Gritty Jackson"}'
+  -d '{"url":"https://www.nudiejeans.com/product/gritty-jackson"}'
 ```
 
-`{"url":"https://…"}` and `{"ean":"7340028912345"}` are the other handle forms. Optional:
-`exclude_low_confidence: true` to drop the low-confidence bucket. `top_offer` is priced in the
-user's saved market automatically.
+`{"ean":"7340028912345"}` is the other handle form. Optional: `exclude_low_confidence: true` to drop
+the low-confidence bucket. Offers (and the convenience `top_offer`) are priced in the user's saved
+market automatically; override with `country_code`.
 
-`{"id":"<uuid>"}` is the **drill-in**: when `search`, `compare`, or `get_rankings` returns a product
-`id` and the user picks one ("tell me about #2"), look it up by that `id` to pull its full specs. The
-`id` pins the exact variant — always one product, never `candidates`. You already hold whatever a
-prior lookup returned, so don't re-fetch the same product within a conversation; the only real fetch
-after a search/compare is that first specs pull, since those lists carry summaries, not specs.
+`{"id":"<uuid>"}` is the **drill-in**: when `search` or `compare` returns a product `id` and the user
+picks one ("tell me about #2"), get it by that `id` to pull its full specs and offers. The `id` pins
+the exact variant — always one product, never `candidates`. You already hold whatever a prior fetch
+returned, so don't re-fetch the same product within a conversation.
+
+**To find a product by name (brand + model) or a free-text need, use `search_products`**, then drill
+the `id` it returns — `get_product` takes only exact keys, and a name is not one.
 
 If the user pastes a bare 8–14 digit number (EAN-8, UPC-A, EAN-13, or GTIN-14), treat it
 as an `ean` and look it up that way before trying to parse it as a model.
@@ -96,17 +99,28 @@ as an `ean` and look it up that way before trying to parse it as a model.
 Response `status`:
 - `hit` — one product. Body: `product`, `quality_score` (0–100 or null), `missing_fields`
   (spec fields whose absence holds the score back — what to contribute), `top_offer`
-  (the recency-best price for `country_code`, or null), `fields`, `low_confidence_fields`,
-  `enrichment_opportunities` (see below).
-- `candidates` — several variants matched (`candidates: [...]`); ask the user which, then look it up by that candidate's `id`.
+  (the recency-best price for the market, or null), `offers` (the full dated price list — see
+  below), `fields`, `low_confidence_fields`, `enrichment_opportunities` (see below).
+- `candidates` — several variants matched (`candidates: [...]`); ask the user which, then get it by that candidate's `id`.
 - `miss` — nothing found. Offer to contribute specs (`submit_contribution`).
 
-When `top_offer` is **null** (no offer on record in the user's market), report the specs but say
-that **availability in the user's country still needs checking** — don't assert it's unavailable.
-If you then research a local price or availability, act on `contribution_mode`: `automatic` → submit
-it with `submit_contribution`; `ask_user` → ask the user first; `never` → don't submit.
+When `top_offer` / `offers` are **empty** (no offer on record in the user's market), report the specs
+but say that **availability in the user's country still needs checking** — don't assert it's
+unavailable. If you then research a local price, act on `contribution_mode`: `automatic` → submit it
+with `submit_contribution`; `ask_user` → ask the user first; `never` → don't submit.
 
-### search_products — find products, best-scored first
+**Offers in the response.** `offers` is dated price observations, recency-sorted (best price today
+first) and **never hidden by age** — a week-old price still shows, just lower in the order. Each
+carries `merchant`, `merchant_country` (where the **shop** is based), `country_code` (where the offer
+**ships to**), `channel` (`online`/`in_store`), `price`, `currency`, `shipping_cost`, `landed_price`
+(price + shipping), `availability_status`, and `observed_at`. `merchant_country` ≠ `country_code` — a
+`DE` shop shipping to `PL` is `merchant_country: "DE"`, `country_code: "PL"`. Use `merchant_country`
+for the user's locality goal (`local_only` already returns only domestic shops; for `local_bonus`,
+prefer offers whose `merchant_country` matches the market). Many prices across shops are all true at
+once — observations, never disputed against each other. Price is deliberately **not** in
+`quality_score`: weigh `landed_price` against the spec quality and the user's `user_goal` yourself.
+
+### search_products — find or browse products, best first
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/search" \
@@ -116,19 +130,23 @@ curl -sS -X POST "https://api.commonspecs.com/v1/search" \
 ```
 
 Fuzzy match on brand name and model — typo-tolerant, so a near-miss spelling still finds the product.
-**Results are scoped to the user's market** — only products available where they buy (every locality
-setting; the locality choice steers which seller/origin you prefer, not availability). Optional
-`category` (slug) filter, `limit` (≤20), and `country_code`. Returns `results` ranked by
-`quality_score` descending (best specs first; products with thin data sort last). Use this when the
-user asks "what should I buy in <category>" rather than naming one product.
+Pass a `query` and/or a `category` slug: a `category` **alone** (no query) browses that category's
+leaderboard — the best products in it, same quality order — which is how you answer "what are the best
+X". **Results are scoped to the user's market** — only products available where they buy (the locality
+choice steers which seller/origin you prefer, not availability). Results are ranked best-first by
+`quality_score` (products with thin data sort last) and **paginated**: `page` (default 1) and
+`page_size` (≤20, default 10); the response carries `page`, `page_size`, and `has_more`. Use this when
+the user asks "what should I buy in <category>" or "the best X", rather than naming one product.
 
-**Category slugs come from the response — never guess one.** Every result set carries
+**Category slugs come from the response — never guess one.** A query result set carries
 `matched_categories`: the canonical slug(s) the free-text query resolved to. That is where you get a
-slug to pass as the `category` filter here or to `get_rankings` — do not invent or hardcode it (a
-wrong slug is a 404, not a fuzzy match). When nothing matches you get `count: 0` with
-`did_you_mean` (the nearest category slugs) plus a seed prompt — so offer those nearby categories, or
-contribute the missing product/category with `submit_contribution`. There is no
-endpoint that lists the whole catalog; category discovery is always per-query through these fields.
+slug to pass as the `category` filter — do not invent or hardcode it (a wrong slug just returns
+nothing, not a fuzzy match). When nothing matches you get `count: 0` with `did_you_mean` (the nearest
+category slugs) plus a seed prompt — so offer those nearby categories, or contribute the missing
+product/category with `submit_contribution`. If a category **is** covered but has no offer in the
+user's market, the response says exactly that (not "no coverage") — widen with `country_code` or
+contribute a local offer. There is no endpoint that lists the whole catalog; category discovery is
+always per-query through these fields.
 
 ### compare_products — side-by-side on hard specs
 
@@ -147,46 +165,6 @@ Up to 5 ids. Returns `products` (each with `quality_score`), a `comparison` matr
 `overall_winner`, then explain the trade-off yourself from the facts + scores — the API
 deliberately does not return per-dimension winners or a rationale; the value-vs-cost and
 fitness-for-purpose judgement is yours to make from the data.
-
-### get_rankings — top products in a category
-
-Use when the user asks "what are the best X" without naming a product.
-
-```bash
-curl -sS "https://api.commonspecs.com/v1/categories/jeans-denim/rankings?country=PL&limit=20" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
-```
-
-Returns `results` ranked by `quality_score` (each with a `rank`). `ranking_scope` is
-`global` for now — country-localized rankings are deferred, so a `country_code` is echoed
-back but the ranking is the global score order. To bring price into a category browse, read
-offers per candidate with `get_offers` and weigh them yourself. Prefer this over many
-individual lookups when the user is browsing a category. The slug in the path must be a real
-category — take it from a prior `search`'s `matched_categories`, never guess it (an unknown slug
-returns 404, not a near match).
-
-### get_offers — prices for a product
-
-```bash
-curl -sS "https://api.commonspecs.com/v1/products/$PRODUCT_ID/offers" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN"
-```
-
-Returns `offers`: dated price observations, recency-sorted (best price today first) and
-**never hidden by age** — a week-old price still shows, just lower in the order. Each offer
-carries `merchant`, `merchant_country` (where the **shop** is based), `country_code` (where the
-offer **ships to**), `channel` (`online`/`in_store`), `price`, `currency`, `shipping_cost`,
-`landed_price` (price + shipping), `availability_status`, and `observed_at`. `merchant_country` ≠
-`country_code` — a `DE` shop shipping to `PL` is `merchant_country: "DE"`, `country_code: "PL"`.
-Use `merchant_country` to honour the user's locality goal: `local_only` already returns only domestic
-shops; for `local_bonus`, prefer offers whose `merchant_country` matches the user's market (it also
-decides which tax regime applies). Many prices across shops/countries are all true at once — they are
-observations, not a single truth, and never disputed against each other. Override the market scope
-with `?country_code=`.
-
-Price is deliberately **not** in `quality_score`: the score measures the thing as a thing.
-Value-per-money is yours to compute — weigh `landed_price` against the spec quality and the
-user's `user_goal` from the response `context`.
 
 ### submit_contribution — add specs and/or a price you have verified
 
@@ -266,6 +244,5 @@ report a fact.
 
 ## Not yet available
 
-`flag_stale` (marking a price or fact out of date) is not exposed by the API yet. Don't
-fabricate calls to it — say the capability isn't live. (Country-localized rankings are also
-deferred — see `get_rankings`.)
+`flag_stale` (marking a price or fact out of date) is not exposed as a tool yet. Don't
+fabricate calls to it — say the capability isn't live.
