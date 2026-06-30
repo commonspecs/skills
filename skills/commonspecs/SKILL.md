@@ -125,9 +125,9 @@ user asks "what should I buy in <category>" rather than naming one product.
 **Category slugs come from the response — never guess one.** Every result set carries
 `matched_categories`: the canonical slug(s) the free-text query resolved to. That is where you get a
 slug to pass as the `category` filter here or to `get_rankings` — do not invent or hardcode it (a
-wrong slug is a 404, not a fuzzy match). When nothing matches, the response is a miss instead —
-`count: 0` with `did_you_mean` (the nearest category slugs) plus a seed prompt — so offer those
-nearby categories, or contribute the missing product/category with `submit_contribution`. There is no
+wrong slug is a 404, not a fuzzy match). When nothing matches you get `count: 0` with
+`did_you_mean` (the nearest category slugs) plus a seed prompt — so offer those nearby categories, or
+contribute the missing product/category with `submit_contribution`. There is no
 endpoint that lists the whole catalog; category discovery is always per-query through these fields.
 
 ### compare_products — side-by-side on hard specs
