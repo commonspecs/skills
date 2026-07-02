@@ -24,14 +24,12 @@ Then set your API token (get one at [commonspecs.com](https://commonspecs.com)):
 
 ```bash
 export COMMONSPECS_API_TOKEN="cs_live_…"
-export COMMONSPECS_DEFAULT_COUNTRY="PL"   # optional, ISO 3166-1 alpha-2
 ```
 
-Or write `~/.commonspecs/config.json`:
-
-```json
-{ "api_token": "cs_live_…", "default_country": "PL" }
-```
+That's the only local configuration. Your buying preferences — market (country), quality and
+locality strategy, contribution mode — live on your account
+([commonspecs.com/account](https://commonspecs.com/account)); the server applies them to every
+read and returns them in a `context` block, so the agent never needs them configured locally.
 
 ## Why this exists
 
@@ -73,9 +71,10 @@ value it didn't get back, and it always carries the confidence with the fact.
 
 If your agent reads a verified spec (off a product page, or a physical label) that
 commonspecs is missing, it can submit it with the source URL and the exact snippet it read
-the value from. Evidence is what earns confidence; corroboration from independent users is
-what makes a value trustworthy. Photos never leave your machine — only the extracted values
-and the product identity are sent.
+the value from — and a dated price observation from the same page, since specs and prices
+usually sit on the same fetch. Evidence is what earns confidence; corroboration from
+independent users is what makes a value trustworthy. Photos never leave your machine — only
+the extracted values and the product identity are sent.
 
 See [`skills/commonspecs/SKILL.md`](skills/commonspecs/SKILL.md) for the exact API calls,
 or the [docs](https://commonspecs.com/docs/) for the full API reference and methodology.
