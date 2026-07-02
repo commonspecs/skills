@@ -69,6 +69,12 @@ Submit an `offer` tagged with the country the price ships to, not necessarily th
 
 All calls send the `Authorization: Bearer $COMMONSPECS_API_TOKEN` header (shown in each example below).
 
+**If your client has the commonspecs MCP server connected** (tools named `get_product`,
+`search_products`, `compare_products`, `get_preferences`, `submit_contribution`, `flag_stale`),
+call those tools instead of curl — same surface, same request and response shapes, and the MCP
+connection carries its own auth. Everything below about reading responses, goals, and
+contributing applies unchanged.
+
 ### get_product — one product's specs and offers
 
 Drill into one known product by **exactly one** exact key: `id`, `url`, or `ean`. Returns its
@@ -132,21 +138,22 @@ curl -sS -X POST "https://api.commonspecs.com/v1/search" \
 Fuzzy match on brand name and model — typo-tolerant, so a near-miss spelling still finds the product.
 Pass a `query` and/or a `category` slug: a `category` **alone** (no query) browses that category's
 leaderboard — the best products in it, same quality order — which is how you answer "what are the best
-X". **Results are scoped to the user's market** — only products available where they buy (the locality
-choice steers which seller/origin you prefer, not availability). Results are ranked best-first by
-`quality_score` (products with thin data sort last) and **paginated**: `page` (default 1) and
-`page_size` (≤20, default 10); the response carries `page`, `page_size`, and `has_more`. Use this when
-the user asks "what should I buy in <category>" or "the best X", rather than naming one product.
+X". **Results prefer the user's market**: products with a confirmed offer where they buy come as the
+normal tier. When **no** product has a confirmed offer there, the same candidates return spec-ranked
+with a top-level `availability: "unconfirmed"` — report the specs, but say availability in the user's
+market still needs checking; never assert it (and if you then find a live local price, contribute it
+per `contribution_mode`). Results are ranked best-first by `quality_score` (products with thin data
+sort last) and **paginated**: `page` (default 1) and `page_size` (≤20, default 10); the response
+carries `page`, `page_size`, and `has_more`. Use this when the user asks "what should I buy in
+<category>" or "the best X", rather than naming one product.
 
 **Category slugs come from the response — never guess one.** A query result set carries
 `matched_categories`: the canonical slug(s) the free-text query resolved to. That is where you get a
 slug to pass as the `category` filter — do not invent or hardcode it (a wrong slug just returns
 nothing, not a fuzzy match). When nothing matches you get `count: 0` with `did_you_mean` (the nearest
 category slugs) plus a seed prompt — so offer those nearby categories, or contribute the missing
-product/category with `submit_contribution`. If a category **is** covered but has no offer in the
-user's market, the response says exactly that (not "no coverage") — widen with `country_code` or
-contribute a local offer. There is no endpoint that lists the whole catalog; category discovery is
-always per-query through these fields.
+product/category with `submit_contribution`. There is no endpoint that lists the whole catalog;
+category discovery is always per-query through these fields.
 
 ### compare_products — side-by-side on hard specs
 
@@ -213,6 +220,23 @@ EAN yourself and send only the extracted values** — the photo never leaves the
 machine. Look the product up by `ean` first, then contribute the missing `fields` with
 `"source": "label"`. A shelf price is just an `offer` with `"channel": "in_store"`.
 
+### flag_stale — mark a fact or price as stale or wrong
+
+When the user (or a page you just read) contradicts a value or price a read returned, flag it:
+flagging queues the entry for curation review — it never mutates the product. To supply the
+corrected value itself, use `submit_contribution`.
+
+```bash
+curl -sS -X POST "https://api.commonspecs.com/v1/flags" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"product_id":"<uuid>","field_name":"fabric_weight","reason":"site now says 12 oz"}'
+```
+
+`product_id` comes from a prior read. `field_name` (omit it to flag the whole product) and
+`reason` (what looks wrong and what you saw instead) are optional. Response:
+`{"status":"flagged","flag_id":"…"}`.
+
 ## Reading a response
 
 `quality_score` (0–100, or null) is the overall spec-quality number; `missing_fields` lists the
@@ -241,8 +265,3 @@ report a fact.
 - `403` forbidden → token lacks access; don't retry.
 - `429` rate limited → back off and retry with exponential delay (e.g. 1s, 2s, 4s, max 3).
 - `5x` / network → retry once or twice with backoff, then report the failure plainly.
-
-## Not yet available
-
-`flag_stale` (marking a price or fact out of date) is not exposed as a tool yet. Don't
-fabricate calls to it — say the capability isn't live.
