@@ -26,6 +26,9 @@ Then set your API token (get one at [commonspecs.com](https://commonspecs.com)):
 export COMMONSPECS_API_TOKEN="cs_live_…"
 ```
 
+Using the [commonspecs MCP server](https://commonspecs.com/docs/mcp/) instead? Skip the token —
+the connection carries its own OAuth sign-in, and the skill drives the MCP tools directly.
+
 That's the only local configuration. Your buying preferences — market (country), quality and
 locality strategy, contribution mode — live on your account
 ([commonspecs.com/account](https://commonspecs.com/account)); the server applies them to every
