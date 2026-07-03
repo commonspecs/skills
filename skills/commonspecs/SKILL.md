@@ -36,7 +36,7 @@ model's context.
 ## The user's buying goals (every read carries them)
 
 The pick — "which of these should I buy?" — is YOUR judgement: the facts the API returns, weighed
-against what the user is optimising for. You don't fetch or store that separately. **Every read
+against what the user is optimising for. You don't fetch or store those goals separately. **Every read
 that returns a product or offers carries a `context` block** with the user's standing goals,
 resolved server-side:
 
@@ -48,29 +48,24 @@ resolved server-side:
 }
 ```
 
-- **`user_goal`** — a ready-to-apply directive: rank and explain recommendations by it. It's prose
-  meant to be applied, not a setting to decode.
-- **`user_market`** — ISO 3166-1 alpha-2 country (or null) the user buys in; scope prices and
-  availability to it.
-- **`contribution_mode`** — `automatic` (submit extracted specs/offers silently) · `ask_user`
+- **`user_goal`** — a ready-to-apply ranking directive: rank recommendations by it and cite it
+  when explaining them. It's prose to follow, not an enum to parse.
+- **`user_market`** — ISO 3166-1 alpha-2 country (or null) the user buys in. Reads come already
+  scoped to it server-side — pass `country_code` only to override for a market the request
+  explicitly names ("price in Japan" → `JP`).
+- **`contribution_mode`** — `automatic` (submit extracted specs/offers as you go, no confirm step) · `ask_user`
   (one-tap confirm first) · `never` (don't submit). Respect it before any `submit_contribution`.
 
 The user sets these on the site (commonspecs.com/account); you only **read** them — never ask for
 them, never set them. A single request may still override them in conversation ("ignore locality
-this time", "price in Germany") without changing anything stored.
-
-**The market is server-side — you don't pass it.** Reads are scoped to the user's saved market
-(`user_market`) by the server: `search` returns products available where the user buys, and
-`get_product` returns a product's specs with its `offers` priced for that market. Pass `country_code`
-**only to override** for a different market the request explicitly names ("price in Japan" → `JP`).
-Submit an `offer` tagged with the country the price ships to, not necessarily the user's market.
+this time", "price in Japan") without changing anything stored.
 
 ## Tools
 
 All calls send the `Authorization: Bearer $COMMONSPECS_API_TOKEN` header (shown in each example below).
 
 **If your client has the commonspecs MCP server connected** (tools named `get_product`,
-`search_products`, `compare_products`, `get_preferences`, `submit_contribution`, `flag_stale`),
+`search_products`, `compare_products`, `submit_contribution`, `flag_stale`),
 call those tools instead of curl — same surface, same request and response shapes, and the MCP
 connection carries its own auth. Everything below about reading responses, goals, and
 contributing applies unchanged.
@@ -87,7 +82,8 @@ curl -sS -X POST "https://api.commonspecs.com/v1/lookup" \
   -d '{"url":"https://www.nudiejeans.com/product/gritty-jackson"}'
 ```
 
-`{"ean":"7340028912345"}` is the other handle form. Optional: `exclude_low_confidence: true` to drop
+`{"ean":"7340028912345"}` is the other exact-key form. (`/v1/lookup` is simply this tool's REST
+endpoint — the only one whose path differs from the tool name.) Optional: `exclude_low_confidence: true` to drop
 the low-confidence bucket. Offers (and the convenience `top_offer`) are priced in the user's saved
 market automatically; override with `country_code`.
 
@@ -112,8 +108,7 @@ Response `status`:
 
 When `top_offer` / `offers` are **empty** (no offer on record in the user's market), report the specs
 but say that **availability in the user's country still needs checking** — don't assert it's
-unavailable. If you then research a local price, act on `contribution_mode`: `automatic` → submit it
-with `submit_contribution`; `ask_user` → ask the user first; `never` → don't submit.
+unavailable. If you then research a local price, contribute it per `contribution_mode`.
 
 **Offers in the response.** `offers` is dated price observations, recency-sorted (best price today
 first) and **never hidden by age** — a week-old price still shows, just lower in the order. Each
@@ -121,8 +116,9 @@ carries `merchant`, `merchant_country` (where the **shop** is based), `country_c
 **ships to**), `channel` (`online`/`in_store`), `price`, `currency`, `shipping_cost`, `landed_price`
 (price + shipping), `availability_status`, and `observed_at`. `merchant_country` ≠ `country_code` — a
 `DE` shop shipping to `PL` is `merchant_country: "DE"`, `country_code: "PL"`. Use `merchant_country`
-for the user's locality goal (`local_only` already returns only domestic shops; for `local_bonus`,
-prefer offers whose `merchant_country` matches the market). Many prices across shops are all true at
+for the user's locality goal: when the `user_goal` restricts to local shops the results are already
+domestic-only; when it merely favours local, prefer offers whose `merchant_country` matches the
+market. Many prices across shops are all true at
 once — observations, never disputed against each other. Price is deliberately **not** in
 `quality_score`: weigh `landed_price` against the spec quality and the user's `user_goal` yourself.
 
@@ -151,8 +147,9 @@ carries `page`, `page_size`, and `has_more`. Use this when the user asks "what s
 `matched_categories`: the canonical slug(s) the free-text query resolved to. That is where you get a
 slug to pass as the `category` filter — do not invent or hardcode it (a wrong slug just returns
 nothing, not a fuzzy match). When nothing matches you get `count: 0` with `did_you_mean` (the nearest
-category slugs) plus a seed prompt — so offer those nearby categories, or contribute the missing
-product/category with `submit_contribution`. There is no endpoint that lists the whole catalog;
+category slugs) and, for a named category, a `message_to_user` and a `message_to_model` — follow the
+latter: typically answer the buyer from your own knowledge, then contribute the specs of the
+product(s) you discussed with `submit_contribution`. There is no endpoint that lists the whole catalog;
 category discovery is always per-query through these fields.
 
 ### compare_products — side-by-side on hard specs
@@ -197,10 +194,12 @@ curl -sS -X POST "https://api.commonspecs.com/v1/contributions" \
 ```
 
 An `offer` is a dated observation: `store` (a shop domain or URL — the store's identity),
-`country` (ISO 3166-1 alpha-2), `price`, `currency` (ISO 4217), `availability`
+`country` (ISO 3166-1 alpha-2 — the delivery destination, never the shop's home
+country; the server resolves that from `store`), `price`, `currency` (ISO 4217), `availability`
 (`in_stock` / `low_stock` / `out_of_stock` / `preorder` / `discontinued`), and optionally
 `channel` (`online` default / `in_store`), `shipping_cost`, `observed_at` (ISO 8601; defaults
-to now), `source_url`. Send it alongside `fields` from the same fetch, or on its own:
+to now), `source_url`. A shop that ships to several countries is several offers — one per
+destination you observed. Send it alongside `fields` from the same fetch, or on its own:
 
 ```bash
 curl -sS -X POST "https://api.commonspecs.com/v1/contributions" \
