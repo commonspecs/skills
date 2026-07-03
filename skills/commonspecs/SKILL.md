@@ -20,26 +20,15 @@ honestly — including how trustworthy each one is.
 
 ## Setup
 
-Two ways to authenticate — either one is enough.
+commonspecs MCP server connected (tools named `get_product`, `search_products`, …)? Use those
+tools — the connection carries its own OAuth sign-in; no token needed.
 
-**Path 1 — API token (curl).** One environment variable — your API token (shape `cs_live_…`, sent
-as `Authorization: Bearer`) — read from the project root `.env` (or your shell):
+Otherwise call the REST API with `Authorization: Bearer $COMMONSPECS_API_TOKEN` (set in the
+project root `.env` or your shell). Reference the token only as `$COMMONSPECS_API_TOKEN` and let
+the shell expand it — never read, echo, or otherwise pull its value into the model's context.
 
-```
-COMMONSPECS_API_TOKEN=cs_live_…
-```
-
-The token lives **only** in the environment: reference it as `$COMMONSPECS_API_TOKEN` and let the
-shell expand it when calling the API — never read, echo, or otherwise pull the token value into the
-model's context.
-
-**Path 2 — MCP connection.** If your client has the commonspecs MCP server connected (tools named
-`get_product`, `search_products`, `compare_products`, `submit_contribution`, `flag_stale`), you are
-already authenticated — the connection carries its own OAuth sign-in and no token is needed. Call
-those tools instead of curl: same surface, same request and response shapes.
-
-If neither is available — `COMMONSPECS_API_TOKEN` unset and no MCP connection — tell the user to
-set the token (or connect the MCP server) and stop; do not call the API.
+Neither available → tell the user to set a token (commonspecs.com/account) or connect the MCP
+server, and stop — do not call the API.
 
 ## The user's buying goals (every read carries them)
 
@@ -71,8 +60,8 @@ this time", "price in Japan") without changing anything stored.
 ## Tools
 
 All curl calls send the `Authorization: Bearer $COMMONSPECS_API_TOKEN` header (shown in each
-example below). On the MCP path (Setup, path 2), call the identically-named tools instead of
-curl — everything below about reading responses, goals, and contributing applies unchanged.
+example below). Over MCP (see Setup), call the identically-named tools instead of curl —
+everything below about reading responses, goals, and contributing applies unchanged.
 
 ### get_product — one product's specs and offers
 
