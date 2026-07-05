@@ -20,26 +20,15 @@ honestly — including how trustworthy each one is.
 
 ## Setup
 
-Two ways to authenticate — either one is enough.
+commonspecs MCP server connected (tools named `get_product`, `search_products`, …)? Use those
+tools — the connection carries its own OAuth sign-in; no token needed.
 
-**Path 1 — API token (curl).** One environment variable — your API token (shape `cs_live_…`, sent
-as `Authorization: Bearer`) — read from the project root `.env` (or your shell):
+Otherwise call the REST API with `Authorization: Bearer $COMMONSPECS_API_TOKEN` (set in the
+project root `.env` or your shell). Reference the token only as `$COMMONSPECS_API_TOKEN` and let
+the shell expand it — never read, echo, or otherwise pull its value into the model's context.
 
-```
-COMMONSPECS_API_TOKEN=cs_live_…
-```
-
-The token lives **only** in the environment: reference it as `$COMMONSPECS_API_TOKEN` and let the
-shell expand it when calling the API — never read, echo, or otherwise pull the token value into the
-model's context.
-
-**Path 2 — MCP connection.** If your client has the commonspecs MCP server connected (tools named
-`get_product`, `search_products`, `compare_products`, `submit_contribution`, `flag_stale`), you are
-already authenticated — the connection carries its own OAuth sign-in and no token is needed. Call
-those tools instead of curl: same surface, same request and response shapes.
-
-If neither is available — `COMMONSPECS_API_TOKEN` unset and no MCP connection — tell the user to
-set the token (or connect the MCP server) and stop; do not call the API.
+Neither available → tell the user to set a token (commonspecs.com/account) or connect the MCP
+server, and stop — do not call the API.
 
 ## The user's buying goals (every read carries them)
 
@@ -65,29 +54,35 @@ resolved server-side:
   (one-tap confirm first) · `never` (don't submit). Respect it before any `submit_contribution`.
 
 The user sets these on the site (commonspecs.com/account); you only **read** them — never ask for
-them, never set them. A single request may still override them in conversation ("ignore locality
-this time", "price in Japan") without changing anything stored.
+them, never set them. A single request may still override any of them in conversation ("ignore
+locality this time") without changing anything stored.
 
 ## Tools
 
-All curl calls send the `Authorization: Bearer $COMMONSPECS_API_TOKEN` header (shown in each
-example below). On the MCP path (Setup, path 2), call the identically-named tools instead of
-curl — everything below about reading responses, goals, and contributing applies unchanged.
+Five tools. Over MCP — the default — call each by name with the JSON arguments shown below.
+Without MCP, POST the same argument object to the tool's REST endpoint:
+
+```bash
+curl -sS -X POST "https://api.commonspecs.com/v1/<endpoint>" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{…}'
+```
+
+Endpoints: `get_product` → `/v1/lookup` · `search_products` → `/v1/search` · `compare_products` →
+`/v1/compare` · `submit_contribution` → `/v1/contributions` · `flag_stale` → `/v1/flags`.
+Arguments, responses, goals, and contributing are identical on both transports.
 
 ### get_product — one product's specs and offers
 
 Drill into one known product by **exactly one** exact key: `id`, `url`, or `ean`. Returns its
 engineering-grade specs (with per-field confidence) **and** its price `offers`, in a single call.
 
-```bash
-curl -sS -X POST "https://api.commonspecs.com/v1/lookup" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://www.nudiejeans.com/product/gritty-jackson"}'
+```json
+{"url": "https://www.nudiejeans.com/product/gritty-jackson"}
 ```
 
-`{"ean":"7340028912345"}` is the other exact-key form. (`/v1/lookup` is simply this tool's REST
-endpoint — the only one whose path differs from the tool name.) Optional: `exclude_low_confidence: true` to drop
+`{"ean":"7340028912345"}` is the other exact-key form. Optional: `exclude_low_confidence: true` to drop
 the low-confidence bucket. Offers (and the convenience `top_offer`) are priced in the user's saved
 market automatically; override with `country_code`.
 
@@ -128,11 +123,8 @@ once — observations, never disputed against each other. Price is deliberately 
 
 ### search_products — find or browse products, best first
 
-```bash
-curl -sS -X POST "https://api.commonspecs.com/v1/search" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"query":"raw denim"}'
+```json
+{"query": "raw denim"}
 ```
 
 Fuzzy match on brand name and model — typo-tolerant, so a near-miss spelling still finds the product.
@@ -160,11 +152,8 @@ category discovery is always per-query through these fields.
 
 Use when the user names **two or more** specific products to choose between.
 
-```bash
-curl -sS -X POST "https://api.commonspecs.com/v1/compare" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"product_ids":["<id1>","<id2>"]}'
+```json
+{"product_ids": ["<id1>", "<id2>"]}
 ```
 
 Up to 5 ids. Returns `products` (each with `quality_score`), a `comparison` matrix
@@ -183,18 +172,15 @@ new). Each field should carry the `source_url` and a verbatim `snippet` you read
 from — that evidence is what earns confidence. `source` is `web` (default, a web page) or
 `label` (a physical label — see below).
 
-```bash
-curl -sS -X POST "https://api.commonspecs.com/v1/contributions" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "brand": "Nudie Jeans", "model": "Gritty Jackson", "source": "web",
-    "fields": [
-      {"field_name": "fabric_weight", "value": "13.5 oz",
-       "source_url": "https://www.nudiejeans.com/product/gritty-jackson",
-       "snippet": "13.5 oz organic dry denim"}
-    ]
-  }'
+```json
+{
+  "brand": "Nudie Jeans", "model": "Gritty Jackson", "source": "web",
+  "fields": [
+    {"field_name": "fabric_weight", "value": "13.5 oz",
+     "source_url": "https://www.nudiejeans.com/product/gritty-jackson",
+     "snippet": "13.5 oz organic dry denim"}
+  ]
+}
 ```
 
 An `offer` is a dated observation: `store` (a shop domain or URL — the store's identity),
@@ -205,17 +191,14 @@ country; the server resolves that from `store`), `price`, `currency` (ISO 4217),
 to now), `source_url`. A shop that ships to several countries is several offers — one per
 destination you observed. Send it alongside `fields` from the same fetch, or on its own:
 
-```bash
-curl -sS -X POST "https://api.commonspecs.com/v1/contributions" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "brand": "Nudie Jeans", "model": "Gritty Jackson",
-    "offer": {
-      "store": "nudiejeans.com", "country": "PL", "price": 690.00, "currency": "PLN",
-      "availability": "in_stock", "shipping_cost": 0, "source_url": "https://www.nudiejeans.com/product/gritty-jackson"
-    }
-  }'
+```json
+{
+  "brand": "Nudie Jeans", "model": "Gritty Jackson",
+  "offer": {
+    "store": "nudiejeans.com", "country": "PL", "price": 690.00, "currency": "PLN",
+    "availability": "in_stock", "shipping_cost": 0, "source_url": "https://www.nudiejeans.com/product/gritty-jackson"
+  }
+}
 ```
 
 Physical world: if the user shows a photo of a label/product, **read the values and the
@@ -229,11 +212,8 @@ When the user (or a page you just read) contradicts a value or price a read retu
 flagging queues the entry for curation review — it never mutates the product. To supply the
 corrected value itself, use `submit_contribution`.
 
-```bash
-curl -sS -X POST "https://api.commonspecs.com/v1/flags" \
-  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"product_id":"<uuid>","field_name":"fabric_weight","reason":"site now says 12 oz"}'
+```json
+{"product_id": "<uuid>", "field_name": "fabric_weight", "reason": "site now says 12 oz"}
 ```
 
 `product_id` comes from a prior read. `field_name` (omit it to flag the whole product) and
@@ -264,7 +244,10 @@ report a fact.
 
 ## Errors
 
-- `401` invalid/missing token → tell the user to check `COMMONSPECS_API_TOKEN`; don't retry.
-- `403` forbidden → token lacks access; don't retry.
+Same handling on both transports (over MCP these surface as tool errors):
+
+- `401` invalid/missing auth → over MCP reconnect the server; on REST tell the user to check
+  `COMMONSPECS_API_TOKEN`. Don't retry.
+- `403` forbidden → no access; don't retry.
 - `429` rate limited → back off and retry with exponential delay (e.g. 1s, 2s, 4s, max 3).
 - `5x` / network → retry once or twice with backoff, then report the failure plainly.
