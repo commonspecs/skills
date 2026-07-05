@@ -60,11 +60,11 @@ locality this time") without changing anything stored.
 ## Tools
 
 Five tools. Over MCP — the default — call each by name with the JSON arguments shown in its
-section. Without MCP, POST the same argument object to the tool's REST URL — stated at the top
-of each section (tool names and REST paths differ; never derive one from the other):
+section. Without MCP, POST the same argument object to the REST endpoint of the same name —
+e.g. `get_product` is `POST https://api.commonspecs.com/v1/get_product`:
 
 ```bash
-curl -sS -X POST "<the tool's REST URL>" \
+curl -sS -X POST "https://api.commonspecs.com/v1/<tool>" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{…}'
@@ -73,8 +73,6 @@ curl -sS -X POST "<the tool's REST URL>" \
 Arguments, responses, goals, and contributing are identical on both transports.
 
 ### get_product — one product's specs and offers
-
-REST: `POST https://api.commonspecs.com/v1/lookup`
 
 Drill into one known product by **exactly one** exact key: `id`, `url`, or `ean`. Returns its
 engineering-grade specs (with per-field confidence) **and** its price `offers`, in a single call.
@@ -124,8 +122,6 @@ once — observations, never disputed against each other. Price is deliberately 
 
 ### search_products — find or browse products, best first
 
-REST: `POST https://api.commonspecs.com/v1/search`
-
 ```json
 {"query": "raw denim"}
 ```
@@ -153,8 +149,6 @@ category discovery is always per-query through these fields.
 
 ### compare_products — side-by-side on hard specs
 
-REST: `POST https://api.commonspecs.com/v1/compare`
-
 Use when the user names **two or more** specific products to choose between.
 
 ```json
@@ -169,8 +163,6 @@ deliberately does not return per-dimension winners or a rationale; the value-vs-
 fitness-for-purpose judgement is yours to make from the data.
 
 ### submit_contribution — add specs and/or a price you have verified
-
-REST: `POST https://api.commonspecs.com/v1/contributions`
 
 One submission carries a `fields` array **and/or** an `offer` (a price observation grabbed
 from the same page you read the specs off — the cheapest moment to capture it). Identify the
@@ -214,8 +206,6 @@ machine. Look the product up by `ean` first, then contribute the missing `fields
 `"source": "label"`. A shelf price is just an `offer` with `"channel": "in_store"`.
 
 ### flag_stale — mark a fact or price as stale or wrong
-
-REST: `POST https://api.commonspecs.com/v1/flags`
 
 When the user (or a page you just read) contradicts a value or price a read returned, flag it:
 flagging queues the entry for curation review — it never mutates the product. To supply the
