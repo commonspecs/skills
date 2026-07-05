@@ -20,8 +20,8 @@ honestly — including how trustworthy each one is.
 
 ## Setup
 
-commonspecs MCP server connected (tools named `get_product`, `search_products`, …)? Use those
-tools — the connection carries its own OAuth sign-in; no token needed.
+If an MCP server named `commonspecs` is connected, use its tools — the same five documented
+below. The connection carries its own OAuth sign-in; no token needed.
 
 Otherwise call the REST API with `Authorization: Bearer $COMMONSPECS_API_TOKEN` (set in the
 project root `.env` or your shell). Reference the token only as `$COMMONSPECS_API_TOKEN` and let
