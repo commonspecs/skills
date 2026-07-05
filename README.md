@@ -20,16 +20,16 @@ supports. Or install manually:
 cp -r skills/commonspecs ~/.claude/skills/
 ```
 
-Then set your API token (get one at [commonspecs.com](https://commonspecs.com)):
+Then connect. The best path is the [commonspecs MCP server](https://commonspecs.com/docs/mcp/):
+it signs in with OAuth — no token to create or manage — and the skill drives its tools
+directly. If your agent has no MCP support, set an API token instead (get one at
+[commonspecs.com](https://commonspecs.com)):
 
 ```bash
 export COMMONSPECS_API_TOKEN="cs_live_…"
 ```
 
-Using the [commonspecs MCP server](https://commonspecs.com/docs/mcp/) instead? Skip the token —
-the connection carries its own OAuth sign-in, and the skill drives the MCP tools directly.
-
-That's the only local configuration. Your buying preferences — market (country), quality and
+That's the only local configuration either way. Your buying preferences — market (country), quality and
 locality strategy, contribution mode — live on your account
 ([commonspecs.com/account](https://commonspecs.com/account)); the server applies them to every
 read and returns them in a `context` block, so the agent never needs them configured locally.
