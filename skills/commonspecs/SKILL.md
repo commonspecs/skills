@@ -32,10 +32,10 @@ server, and stop — do not call the API.
 
 ## The user's buying goals (every read carries them)
 
-The pick — "which of these should I buy?" — is YOUR judgement: the facts the API returns, weighed
-against what the user is optimising for. You don't fetch or store those goals separately. **Every read
-that returns a product or offers carries a `context` block** with the user's standing goals,
-resolved server-side:
+commonspecs never makes buying decisions — it returns facts. Recommending is your job: weigh the
+returned specs against the user's goals and help them choose. You don't fetch or store those goals
+separately. **Every read that returns a product or offers carries a `context` block** with the
+user's standing goals, resolved server-side:
 
 ```json
 "context": {
