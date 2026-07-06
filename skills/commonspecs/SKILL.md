@@ -74,8 +74,8 @@ Arguments, responses, goals, and contributing are identical on both transports.
 
 ### get_product — one product's specs and offers
 
-Drill into one known product by **exactly one** exact key: `id`, `url`, or `ean`. Returns its
-engineering-grade specs (with per-field confidence) **and** its price `offers`, in a single call.
+Drill into one known product by a single exact key: `id`, `url`, or `ean`. Returns its
+engineering-grade specs (with per-field confidence) and its price `offers`, in a single call.
 
 ```json
 {"url": "<the product page URL>"}
