@@ -78,7 +78,7 @@ Drill into one known product by **exactly one** exact key: `id`, `url`, or `ean`
 engineering-grade specs (with per-field confidence) **and** its price `offers`, in a single call.
 
 ```json
-{"url": "https://www.nudiejeans.com/product/gritty-jackson"}
+{"url": "https://acme-denim.example.com/products/rigid-14"}
 ```
 
 `{"ean":"7340028912345"}` is the other exact-key form. Optional: `exclude_low_confidence: true` to drop
@@ -173,10 +173,10 @@ from — that evidence is what earns confidence. `source` is `web` (default, a w
 
 ```json
 {
-  "brand": "Nudie Jeans", "model": "Gritty Jackson", "source": "web",
+  "brand": "Acme Denim", "model": "Rigid 14", "source": "web",
   "fields": [
     {"field_name": "fabric_weight", "value": "13.5 oz",
-     "source_url": "https://www.nudiejeans.com/product/gritty-jackson",
+     "source_url": "https://acme-denim.example.com/products/rigid-14",
      "snippet": "13.5 oz organic dry denim"}
   ]
 }
@@ -192,10 +192,10 @@ destination you observed. Send it alongside `fields` from the same fetch, or on 
 
 ```json
 {
-  "brand": "Nudie Jeans", "model": "Gritty Jackson",
+  "brand": "Acme Denim", "model": "Rigid 14",
   "offer": {
-    "store": "nudiejeans.com", "country": "PL", "price": 690.00, "currency": "PLN",
-    "availability": "in_stock", "shipping_cost": 0, "source_url": "https://www.nudiejeans.com/product/gritty-jackson"
+    "store": "acme-denim.example.com", "country": "PL", "price": 690.00, "currency": "PLN",
+    "availability": "in_stock", "shipping_cost": 0, "source_url": "https://acme-denim.example.com/products/rigid-14"
   }
 }
 ```
