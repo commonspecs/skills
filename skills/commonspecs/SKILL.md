@@ -81,9 +81,8 @@ engineering-grade specs (with per-field confidence) and its price `offers`, in a
 {"url": "<the product page URL>"}
 ```
 
-`{"ean":"<the EAN digits>"}` is the other exact-key form. Optional: `exclude_low_confidence: true` to drop
-the low-confidence bucket. Offers (and the convenience `top_offer`) are priced in the user's saved
-market automatically; override with `country_code`.
+`{"ean":"<the EAN digits>"}` is the other exact-key form. Offers (and the convenience `top_offer`) are
+priced in the user's saved market automatically; override with `country_code`.
 
 `{"id":"<uuid>"}` is the **drill-in**: when `search` or `compare` returns a product `id` and the user
 picks one ("tell me about #2"), get it by that `id` to pull its full specs and offers. The `id` pins
