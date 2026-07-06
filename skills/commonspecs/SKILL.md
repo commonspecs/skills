@@ -78,10 +78,10 @@ Drill into one known product by **exactly one** exact key: `id`, `url`, or `ean`
 engineering-grade specs (with per-field confidence) **and** its price `offers`, in a single call.
 
 ```json
-{"url": "https://acme-denim.example.com/products/rigid-14"}
+{"url": "<the product page URL>"}
 ```
 
-`{"ean":"7340028912345"}` is the other exact-key form. Optional: `exclude_low_confidence: true` to drop
+`{"ean":"<the EAN digits>"}` is the other exact-key form. Optional: `exclude_low_confidence: true` to drop
 the low-confidence bucket. Offers (and the convenience `top_offer`) are priced in the user's saved
 market automatically; override with `country_code`.
 
@@ -123,7 +123,7 @@ once — observations, never disputed against each other. Price is deliberately 
 ### search_products — find or browse products, best first
 
 ```json
-{"query": "raw denim"}
+{"query": "<brand, model, or free-text need>"}
 ```
 
 Fuzzy match on brand name and model — typo-tolerant, so a near-miss spelling still finds the product.
@@ -173,11 +173,11 @@ from — that evidence is what earns confidence. `source` is `web` (default, a w
 
 ```json
 {
-  "brand": "Acme Denim", "model": "Rigid 14", "source": "web",
+  "brand": "<brand>", "model": "<model>", "source": "web",
   "fields": [
-    {"field_name": "fabric_weight", "value": "13.5 oz",
-     "source_url": "https://acme-denim.example.com/products/rigid-14",
-     "snippet": "13.5 oz organic dry denim"}
+    {"field_name": "<schema field>", "value": "<value exactly as printed>",
+     "source_url": "<the page you read it from>",
+     "snippet": "<verbatim text containing the value>"}
   ]
 }
 ```
@@ -192,10 +192,10 @@ destination you observed. Send it alongside `fields` from the same fetch, or on 
 
 ```json
 {
-  "brand": "Acme Denim", "model": "Rigid 14",
+  "brand": "<brand>", "model": "<model>",
   "offer": {
-    "store": "acme-denim.example.com", "country": "PL", "price": 690.00, "currency": "PLN",
-    "availability": "in_stock", "shipping_cost": 0, "source_url": "https://acme-denim.example.com/products/rigid-14"
+    "store": "<shop domain>", "country": "<ISO 3166-1 alpha-2>", "price": <number>, "currency": "<ISO 4217>",
+    "availability": "<enum above>", "shipping_cost": <number>, "source_url": "<the offer page>"
   }
 }
 ```
