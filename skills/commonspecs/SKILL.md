@@ -5,8 +5,9 @@ description: >-
   objective specs, with current prices and availability in your region. Use it
   when someone asks what to buy, what something is really made of or includes,
   how options compare, what it costs, or where to buy it — and to record
-  verified facts back: specs, a price, or how an order actually went (observed
-  delivery time, the country it really shipped from, where returns go).
+  verified facts back: specs, a price, how an order actually went (observed
+  delivery time, the country it really shipped from, where returns go), or a
+  fact about a shop itself (e.g. that it is a dropshipping storefront).
 license: MIT
 metadata:
   homepage: https://commonspecs.com
@@ -111,19 +112,21 @@ unavailable. If you then research a local price, contribute it per `contribution
 
 **Offers in the response.** `offers` is dated price observations, recency-sorted (best price today
 first) and **never hidden by age** — a week-old price still shows, just lower in the order. Each
-carries `merchant`, `merchant_country` (where the **shop** is based), `ships_from_country` (where the
-store was observed to actually **dispatch** from), `returns_to_country` (where the store told a buyer
-to send **returns**), `country_code` (where the offer **ships to**), `channel` (`online`/`in_store`),
+carries `merchant`, `merchant_country` (where the **shop** is based), `ships_from_countries` (the
+countries the store was observed to actually **dispatch** from), `returns_to_countries` (where the
+store told buyers to send **returns**), `dropshipping` (reported store assessment: `true`/`false`,
+null = unknown), `country_code` (where the offer **ships to**), `channel` (`online`/`in_store`),
 `price`, `currency`, `shipping_cost`, `landed_price` (price + shipping), `delivery_days` (observed
 door-to-door delivery time in days, or null), `availability_status`, and `observed_at`.
 `merchant_country` ≠ `country_code` — a `DE` shop shipping to `PL` is `merchant_country: "DE"`,
-`country_code: "PL"`. The fulfilment pair is a third axis, recorded per **(store, destination
+`country_code: "PL"`. The fulfilment fields are a third axis, recorded per **(store, destination
 market)** — a chain like zara.com serves PL and US from different warehouses, so each offer shows
-only what was observed for its own market (null means not observed there yet, not "same as
-elsewhere"). A storefront "based" in the user's country can still dispatch from and take returns in
-another — a non-local `returns_to_country` is the strongest dropship signal and often decides
-whether returning is economically viable, so surface it when the user weighs a purchase. Use
-`merchant_country`
+only what was observed for its own market. The country fields are **sets**: H&M serves PL from both
+PL and DE warehouses, so every observed origin accumulates (empty = not observed there yet, not
+"ships from nowhere"). A storefront "based" in the user's country can still dispatch from and take
+returns in another — a non-local entry in `returns_to_countries` is the strongest dropship signal
+and often decides whether returning is economically viable, so surface it (and `dropshipping:
+true`) when the user weighs a purchase. Use `merchant_country`
 for the user's locality goal: when the `user_goal` restricts to local shops the results are already
 domestic-only; when it merely favours local, prefer offers whose `merchant_country` matches the
 market. Many prices across shops are all true at
@@ -216,11 +219,30 @@ actually went, record it on the offer — these ride in the same `offer` object,
 (ISO 3166-1 alpha-2 the parcel was actually dispatched from, per tracking or the sender label),
 `returns_to_country` (where the store told the user to send a return). The two countries are
 store facts **per destination market**: the server persists them keyed on (store, the offer's
-`country`), so a chain that fulfils each market from different warehouses stays correct. Last
-write wins within a market; omitting them never blanks what's recorded. They may differ from
-where the shop claims to be based — a non-local `returns_to_country` is the strongest dropship
-signal. So "it finally arrived after three weeks, shipped from China, and they want returns sent
-to China" is a contribution, not just a complaint.
+`country`), and each market's knowledge is a **set** — one order observes one origin, but a chain
+like H&M ships PL orders from both PL and DE, so observations accumulate; nothing is ever
+overwritten or blanked. They may differ from where the shop claims to be based — a non-local
+return destination is the strongest dropship signal. So "it finally arrived after three weeks,
+shipped from China, and they want returns sent to China" is a contribution, not just a complaint.
+
+**A shop fact needs no product.** When the user shares store knowledge without a product or price
+on hand — an order still in transit, a returns email, "that boutique is a dropship front" — send a
+`store` block instead, alone (no product key) or alongside `fields`/`offer`:
+
+```json
+{
+  "store": {
+    "store": "<shop domain>", "country": "<destination market, ISO 3166-1 alpha-2>",
+    "dropshipping": true,
+    "ships_from_country": "<ISO alpha-2, optional>", "returns_to_country": "<ISO alpha-2, optional>"
+  }
+}
+```
+
+`country` is the market the experience concerns (where the user ordered to). `dropshipping` is the
+store assessment for that market — set it when the fulfilment pattern shows it (non-local dispatch
+or returns behind a local facade), true or false as observed; leave it out when unknown. Respect
+`contribution_mode` as with any submission.
 
 Physical world: if the user shows a photo of a label/product, **read the values and the
 EAN yourself and send only the extracted values** — the photo never leaves the user's
