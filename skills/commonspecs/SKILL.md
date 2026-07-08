@@ -41,8 +41,8 @@ server, and stop — do not call the API.
 
 commonspecs never makes buying decisions — it returns facts. Recommending is your job: weigh the
 returned specs against the user's goals and help them choose. You don't fetch or store those goals
-separately. **Every read that returns a product or offers carries a `context` block** with the
-user's standing goals, resolved server-side:
+separately. **Every read carries a `context` block — `hit`, `candidates`, and `miss` alike** — with
+the user's standing goals, resolved server-side:
 
 ```json
 "context": {
@@ -118,8 +118,11 @@ Response `status`:
   miss whose shop IS known, `store` carries `merchant`, `merchant_country`, and `markets[]`
   (per destination market: `ships_from_countries`, `returns_to_countries`, `dropshipping`).
   Report those store facts to the user first — `dropshipping: true` or a non-local return
-  destination often decides the purchase on its own — then offer to contribute the product's
-  specs (`submit_contribution`). `store: null` means the shop is unknown too.
+  destination often decides the purchase on its own. **Then seed the product per
+  `context.contribution_mode`** (the miss response carries it): on `automatic`, verify the specs
+  and price from the product page you were given and call `submit_contribution` right away — no
+  confirmation step, a miss plus a page in hand IS the contribution moment; on `ask_user`, offer
+  a one-tap confirm first; on `never`, don't submit. `store: null` means the shop is unknown too.
 
 To check a **shop** with no product in hand ("is this store legit?"), call `get_product` with
 any URL on that shop's domain — the homepage works: the product lookup will miss, but the
