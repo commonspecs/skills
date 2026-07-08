@@ -117,10 +117,13 @@ to send **returns**), `country_code` (where the offer **ships to**), `channel` (
 `price`, `currency`, `shipping_cost`, `landed_price` (price + shipping), `delivery_days` (observed
 door-to-door delivery time in days, or null), `availability_status`, and `observed_at`.
 `merchant_country` ≠ `country_code` — a `DE` shop shipping to `PL` is `merchant_country: "DE"`,
-`country_code: "PL"`. The fulfilment pair is a third axis: a storefront "based" in the user's country
-can still dispatch from and take returns in another — a non-local `returns_to_country` is the
-strongest dropship signal and often decides whether returning is economically viable, so surface it
-when the user weighs a purchase. Use `merchant_country`
+`country_code: "PL"`. The fulfilment pair is a third axis, recorded per **(store, destination
+market)** — a chain like zara.com serves PL and US from different warehouses, so each offer shows
+only what was observed for its own market (null means not observed there yet, not "same as
+elsewhere"). A storefront "based" in the user's country can still dispatch from and take returns in
+another — a non-local `returns_to_country` is the strongest dropship signal and often decides
+whether returning is economically viable, so surface it when the user weighs a purchase. Use
+`merchant_country`
 for the user's locality goal: when the `user_goal` restricts to local shops the results are already
 domestic-only; when it merely favours local, prefer offers whose `merchant_country` matches the
 market. Many prices across shops are all true at
@@ -212,11 +215,12 @@ actually went, record it on the offer — these ride in the same `offer` object,
 `delivery_days` (observed door-to-door delivery time in whole days), `ships_from_country`
 (ISO 3166-1 alpha-2 the parcel was actually dispatched from, per tracking or the sender label),
 `returns_to_country` (where the store told the user to send a return). The two countries are
-**store-level** facts: the server persists them on the merchant (last write wins; omitting them
-never blanks what's recorded), and they may differ from where the shop claims to be based — a
-non-local `returns_to_country` is the strongest dropship signal. So "it finally arrived after
-three weeks, shipped from China, and they want returns sent to China" is a contribution, not
-just a complaint.
+store facts **per destination market**: the server persists them keyed on (store, the offer's
+`country`), so a chain that fulfils each market from different warehouses stays correct. Last
+write wins within a market; omitting them never blanks what's recorded. They may differ from
+where the shop claims to be based — a non-local `returns_to_country` is the strongest dropship
+signal. So "it finally arrived after three weeks, shipped from China, and they want returns sent
+to China" is a contribution, not just a complaint.
 
 Physical world: if the user shows a photo of a label/product, **read the values and the
 EAN yourself and send only the extracted values** — the photo never leaves the user's
