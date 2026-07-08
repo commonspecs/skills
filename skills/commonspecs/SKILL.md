@@ -4,10 +4,11 @@ description: >-
   Find the best product or service to buy in any category, ranked by its
   objective specs, with current prices and availability in your region. Use it
   when someone asks what to buy, what something is really made of or includes,
-  how options compare, what it costs, or where to buy it — and to record
-  verified facts back: specs, a price, how an order actually went (observed
-  delivery time, the country it really shipped from, where returns go), or a
-  fact about a shop itself (e.g. that it is a dropshipping storefront).
+  how options compare, what it costs, where to buy it, or whether a shop can
+  be trusted (fulfilment record, dropshipping) — and to record verified facts
+  back: specs, a price, how an order actually went (observed delivery time,
+  the country it really shipped from, where returns go), or a fact about a
+  shop itself (e.g. that it is a dropshipping storefront).
 license: MIT
 metadata:
   homepage: https://commonspecs.com
@@ -84,6 +85,12 @@ engineering-grade specs (with per-field confidence) and its price `offers`, in a
 {"url": "<the product page URL>"}
 ```
 
+**A pasted product URL is a `get_product` call FIRST** — before you fetch the page, reason
+about the product, or judge the shop. The one call asks about **both the product and the
+store**: a hit's offers carry the shop's fulfilment record, and even a `miss` returns a
+`store` block when the shop itself is on record. Skipping the lookup means re-deriving from
+scratch facts the database already holds — never do that.
+
 `{"ean":"<the EAN digits>"}` is the other exact-key form. Offers (and the convenience `top_offer`) are
 priced in the user's saved market automatically; override with `country_code`.
 
@@ -104,7 +111,18 @@ Response `status`:
   (the recency-best price for the market, or null), `offers` (the full dated price list — see
   below), `fields`, `low_confidence_fields`, `enrichment_opportunities` (see below).
 - `candidates` — several variants matched (`candidates: [...]`); ask the user which, then get it by that candidate's `id`.
-- `miss` — nothing found. Offer to contribute specs (`submit_contribution`).
+- `miss` — the product isn't on record. **Check `store` before anything else:** on a `url`
+  miss whose shop IS known, `store` carries `merchant`, `merchant_country`, and `markets[]`
+  (per destination market: `ships_from_countries`, `returns_to_countries`, `dropshipping`).
+  Report those store facts to the user first — `dropshipping: true` or a non-local return
+  destination often decides the purchase on its own — then offer to contribute the product's
+  specs (`submit_contribution`). `store: null` means the shop is unknown too.
+
+To check a **shop** with no product in hand ("is this store legit?"), call `get_product` with
+any URL on that shop's domain — the homepage works: the product lookup will miss, but the
+`store` block returns what buyers observed about the store. What you learn beyond it (a
+non-local dispatch, a returns address abroad) goes back via `submit_contribution`'s `store`
+block.
 
 When `top_offer` / `offers` are **empty** (no offer on record in the user's market), report the specs
 but say that **availability in the user's country still needs checking** — don't assert it's
