@@ -1,8 +1,8 @@
 ---
 name: commonspecs
 description: >-
-  Product and shop lookup — invoke FIRST, before fetching any page or judging
-  from scratch, whenever the user pastes a product or store URL or weighs a
+  Product, service, and shop lookup — invoke before fetching any page or judging
+  from scratch, whenever the user pastes a product, service, or store URL or weighs a
   purchase ("what do you think of this?", "should I buy it?", "is this shop
   legit?"). Finds the best product or service to buy in any category, ranked
   by objective specs, with current prices and availability in your region;
@@ -88,7 +88,7 @@ engineering-grade specs (with per-field confidence) and its price `offers`, in a
 {"url": "<the product page URL>"}
 ```
 
-**A pasted product URL is a `get_product` call FIRST** — before you fetch the page, reason
+**A pasted product URL is a `get_product` call** — before you fetch the page, reason
 about the product, or judge the shop. The one call asks about **both the product and the
 store**: a hit's offers carry the shop's fulfilment record, and even a `miss` returns a
 `store` block when the shop itself is on record. Skipping the lookup means re-deriving from
@@ -140,8 +140,10 @@ carries `merchant`, `merchant_country` (where the **shop** is based), `ships_fro
 countries the store was observed to actually **dispatch** from), `returns_to_countries` (where the
 store told buyers to send **returns**), `dropshipping` (reported store assessment: `true`/`false`,
 null = unknown), `country_code` (where the offer **ships to**), `channel` (`online`/`in_store`),
-`price`, `currency`, `shipping_cost`, `landed_price` (price + shipping), `delivery_days` (observed
-door-to-door delivery time in days, or null), `availability_status`, and `observed_at`.
+`price`, `currency`, `shipping_cost`, `landed_price` (price + shipping), `billing_period`
+(`monthly` / `quarterly` / `yearly` for a recurring service price; null = one-time purchase),
+`delivery_days` (observed door-to-door delivery time in days, or null), `availability_status`,
+and `observed_at`.
 `merchant_country` ≠ `country_code` — a `DE` shop shipping to `PL` is `merchant_country: "DE"`,
 `country_code: "PL"`. The fulfilment fields are a third axis, recorded per **(store, destination
 market)** — a chain like zara.com serves PL and US from different warehouses, so each offer shows
@@ -204,7 +206,9 @@ fitness-for-purpose judgement is yours to make from the data.
 One submission carries a `fields` array **and/or** an `offer` (a price observation grabbed
 from the same page you read the specs off — the cheapest moment to capture it). Identify the
 product by exactly one of `url` / `ean` / `brand`+`model` (brand+model creates the product if
-new). Each field should carry the `source_url` and a verbatim `snippet` you read the value
+new). A **service** is contributed exactly like a product: the provider is the `brand`, the
+plan/tier name is the `model` (services have no EAN), and its recurring price rides on the
+offer's `billing_period`. Each field should carry the `source_url` and a verbatim `snippet` you read the value
 from — that evidence is what earns confidence. `source` is `web` (default, a web page) or
 `label` (a physical label — see below).
 
@@ -222,9 +226,11 @@ from — that evidence is what earns confidence. `source` is `web` (default, a w
 An `offer` is a dated observation: `store` (a shop domain or URL — the store's identity),
 `country` (ISO 3166-1 alpha-2 — the delivery destination, never the shop's home
 country; the server resolves that from `store`), `price`, `currency` (ISO 4217), `availability`
-(`in_stock` / `low_stock` / `out_of_stock` / `preorder` / `discontinued`), and optionally
-`channel` (`online` default / `in_store`), `shipping_cost`, `observed_at` (ISO 8601; defaults
-to now), `source_url`. A shop that ships to several countries is several offers — one per
+(goods: `in_stock` / `low_stock` / `out_of_stock` / `preorder` / `discontinued`; services:
+`available` = accepting orders / `waitlist` / `unavailable`), and optionally `billing_period`
+(`monthly` / `quarterly` / `yearly` for a recurring service price — omit for a one-time
+purchase), `channel` (`online` default / `in_store`), `shipping_cost`, `observed_at` (ISO 8601;
+defaults to now), `source_url`. A shop that ships to several countries is several offers — one per
 destination you observed. Send it alongside `fields` from the same fetch, or on its own:
 
 ```json
