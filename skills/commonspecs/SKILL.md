@@ -27,15 +27,30 @@ honestly — including how trustworthy each one is.
 
 ## Setup
 
-If an MCP server named `commonspecs` is connected, use its tools — the same five documented
-below. The connection carries its own OAuth sign-in; no token needed.
+If an MCP server named `commonspecs` is connected **and authenticated**, use its tools — the
+same five documented below. The connection carries its own OAuth sign-in; no token needed.
+If the MCP server exists but is NOT authenticated (its `authenticate` tool asks the user to
+sign in interactively — impossible in a background/headless session), do NOT stop there: fall
+back to the REST API immediately.
 
-Otherwise call the REST API with `Authorization: Bearer $COMMONSPECS_API_TOKEN` (set in the
-project root `.env` or your shell). Reference the token only as `$COMMONSPECS_API_TOKEN` and let
-the shell expand it — never read, echo, or otherwise pull its value into the model's context.
+REST fallback: call the API with `Authorization: Bearer $COMMONSPECS_API_TOKEN`. The token
+typically lives in the project root `.env`, and a fresh shell does NOT load `.env`
+automatically — source it in the same command as the call:
 
-Neither available → tell the user to set a token (commonspecs.com/account) or connect the MCP
-server, and stop — do not call the API.
+```bash
+set -a && source .env && set +a && curl -sS -X POST "https://api.commonspecs.com/v1/<tool>" \
+  -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{…}'
+```
+
+Reference the token only as `$COMMONSPECS_API_TOKEN` and let the shell expand it — never read,
+echo, or otherwise pull its value into the model's context. A `401 Missing API token` on the
+first call almost always means `.env` was not sourced — fix the command and retry once before
+concluding the token is absent.
+
+Neither transport works (MCP unauthenticated AND no token in `.env`/shell) → tell the user to
+set a token (commonspecs.com/account) or connect the MCP server, and stop — do not call the API.
 
 ## The user's buying goals (every read carries them)
 
@@ -71,7 +86,7 @@ section. Without MCP, POST the same argument object to the REST endpoint of the 
 e.g. `get_product` is `POST https://api.commonspecs.com/v1/get_product`:
 
 ```bash
-curl -sS -X POST "https://api.commonspecs.com/v1/<tool>" \
+set -a && source .env && set +a && curl -sS -X POST "https://api.commonspecs.com/v1/<tool>" \
   -H "Authorization: Bearer $COMMONSPECS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{…}'
@@ -319,8 +334,11 @@ report a fact.
 
 Same handling on both transports (over MCP these surface as tool errors):
 
-- `401` invalid/missing auth → over MCP reconnect the server; on REST tell the user to check
-  `COMMONSPECS_API_TOKEN`. Don't retry.
+- `401` invalid/missing auth → on REST first make sure the call sourced `.env` (see Setup) and
+  retry once with the corrected command; still 401 → tell the user to check
+  `COMMONSPECS_API_TOKEN`, don't retry further. Over MCP: fall back to REST (an interactive
+  reconnect may be impossible in the session); only if REST also fails, ask the user to
+  reconnect the server.
 - `403` forbidden → no access; don't retry.
 - `429` rate limited → back off and retry with exponential delay (e.g. 1s, 2s, 4s, max 3).
 - `5x` / network → retry once or twice with backoff, then report the failure plainly.
