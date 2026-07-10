@@ -186,6 +186,25 @@ latter: typically answer the buyer from your own knowledge, then contribute the 
 product(s) you discussed with `submit_contribution`. There is no endpoint that lists the whole catalog;
 category discovery is always per-query through these fields.
 
+**Spec filters — narrow by recorded facts.** When the user constrains an attribute ("only yellow
+ones", "linen only"), pass `filters` — `{"<field_name>": <value>}` pairs — alongside a `category`
+(the category schema defines the filterable fields, so `filters` without `category` is rejected;
+resolve a slug via `matched_categories` first):
+
+```json
+{"category": "<slug from matched_categories>", "filters": {"colour": "yellow", "fabric": "linen"}}
+```
+
+Only products whose recorded **solid** facts satisfy every constraint return. Field names accept
+the schema's aliases and values canonicalise like contributions (case-insensitive enum snap,
+number+unit), and a filter matches multi-valued facts too — a dress sold in four colours matches
+`"colour": "yellow"`. Two consequences to handle honestly: a product *missing* the field is
+filtered out (thin coverage under-returns — when results look sparse, say the filter only sees
+recorded facts and offer to re-run without it), and an unknown field name returns a 400 listing
+the filterable fields — pick from that list, don't guess again. The response echoes
+`filters_applied` (canonical names and values, so you can show the user what actually constrained
+the search).
+
 ### compare_products — side-by-side on hard specs
 
 Use when the user names **two or more** specific products to choose between.
@@ -222,6 +241,12 @@ from — that evidence is what earns confidence. `source` is `web` (default, a w
   ]
 }
 ```
+
+**A multi-valued attribute is ONE field whose value is an array.** A product sold in four
+colours or made of two fibres is a single claim — `{"field_name": "colour", "value": ["Yellow",
+"Brown", "Black", "Mint"]}` — never four separate `colour` entries (separate entries register as
+*competing* claims and mark the field disputed). Array members are canonicalised individually
+and each member is matchable by search filters.
 
 An `offer` is a dated observation: `store` (a shop domain or URL — the store's identity),
 `country` (ISO 3166-1 alpha-2 — the delivery destination, never the shop's home
