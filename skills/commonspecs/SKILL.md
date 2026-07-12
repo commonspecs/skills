@@ -109,8 +109,8 @@ store**: a hit's offers carry the shop's fulfilment record, and even a `miss` re
 `store` block when the shop itself is on record. Skipping the lookup means re-deriving from
 scratch facts the database already holds — never do that.
 
-`{"ean":"<the EAN digits>"}` is the other exact-key form. Offers (and the convenience `top_offer`) are
-priced in the user's saved market automatically; override with `country_code`.
+`{"ean":"<the EAN digits>"}` is the other exact-key form. Offers are priced in the user's saved
+market automatically; override with `country_code`.
 
 `{"id":"<uuid>"}` is the **drill-in**: when `search` or `compare` returns a product `id` and the user
 picks one ("tell me about #2"), get it by that `id` to pull its full specs and offers. The `id` pins
@@ -125,9 +125,10 @@ as an `ean` and look it up that way before trying to parse it as a model.
 
 Response `status`:
 - `hit` — one product. Body: `product`, `quality_score` (0–100 or null), `missing_fields`
-  (spec fields whose absence holds the score back — what to contribute), `top_offer`
-  (the recency-best price for the market, or null), `offers` (the full dated price list — see
-  below), `fields`, `low_confidence_fields`, `enrichment_opportunities` (see below).
+  (spec fields whose absence holds the score back — what to contribute), `offers` (the full
+  price list, best offer first — see below), `fields`, `low_confidence_fields`,
+  `enrichment_opportunities` (see below). A thin hit is an enrichment moment — see
+  "A hit is also a contribution moment" below.
 - `candidates` — several variants matched (`candidates: [...]`); ask the user which, then get it by that candidate's `id`.
 - `miss` — the product isn't on record. **Check `store` before anything else:** on a `url`
   miss whose shop IS known, `store` carries `merchant`, `merchant_country`, and `markets[]`
@@ -145,20 +146,20 @@ any URL on that shop's domain — the homepage works: the product lookup will mi
 non-local dispatch, a returns address abroad) goes back via `submit_contribution`'s `store`
 block.
 
-When `top_offer` / `offers` are **empty** (no offer on record in the user's market), report the specs
+When `offers` is **empty** (no offer on record in the user's market), report the specs
 but say that **availability in the user's country still needs checking** — don't assert it's
 unavailable. If you then research a local price, contribute it per `contribution_mode`.
 
-**Offers in the response.** `offers` is dated price observations, recency-sorted (best price today
-first) and **never hidden by age** — a week-old price still shows, just lower in the order. Each
-carries `merchant`, `merchant_country` (where the **shop** is based), `ships_from_countries` (the
+**Offers in the response.** `offers` is price observations, **best offer first** — lowest landed
+price softened by recency, so the ordering itself is the freshness signal (there is no timestamp
+in the response) — and **never hidden by age**: a week-old price still shows, just lower in the
+order. `offers[0]` is the best offer for the market. Each carries `merchant`, `merchant_country` (where the **shop** is based), `ships_from_countries` (the
 countries the store was observed to actually **dispatch** from), `returns_to_countries` (where the
 store told buyers to send **returns**), `dropshipping` (reported store assessment: `true`/`false`,
 null = unknown), `country_code` (where the offer **ships to**), `channel` (`online`/`in_store`),
 `price`, `currency`, `shipping_cost`, `landed_price` (price + shipping), `billing_period`
 (`monthly` / `quarterly` / `yearly` for a recurring service price; null = one-time purchase),
-`delivery_days` (observed door-to-door delivery time in days, or null), `availability_status`,
-and `observed_at`.
+`delivery_days` (observed door-to-door delivery time in days, or null), and `availability_status`.
 `merchant_country` ≠ `country_code` — a `DE` shop shipping to `PL` is `merchant_country: "DE"`,
 `country_code: "PL"`. The fulfilment fields are a third axis, recorded per **(store, destination
 market)** — a chain like zara.com serves PL and US from different warehouses, so each offer shows
@@ -173,6 +174,16 @@ domestic-only; when it merely favours local, prefer offers whose `merchant_count
 market. Many prices across shops are all true at
 once — observations, never disputed against each other. Price is deliberately **not** in
 `quality_score`: weigh `landed_price` against the spec quality and the user's `user_goal` yourself.
+
+**A hit is also a contribution moment.** A miss obviously calls for seeding — but a *thin* hit
+calls for enrichment just as strongly: a low `quality_score`, a non-empty `missing_fields`, fields
+flagged `needs_corroboration`, or anything in `enrichment_opportunities`. When you see one, don't
+stop at reporting the gaps: fetch the manufacturer's product page (and the store page the user gave
+you), read the missing or unconfirmed values off it, and `submit_contribution` per
+`context.contribution_mode` — on `automatic`, right away, no confirmation step. Every independent
+source corroborating a field raises its confidence toward 1.0, and every newly covered field lifts
+`quality_score` toward 100 — a lookup that leaves the record no better than it found it wastes a
+page you already had in hand.
 
 ### search_products — find or browse products, best first
 
