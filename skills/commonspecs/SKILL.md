@@ -77,7 +77,7 @@ locality this time") without changing anything stored.
 
 ## Tools
 
-Five tools; each one's contract — arguments and response — is described in its own section
+Five tools; each one's contract is described in its own section
 below. Over MCP, call a tool by name; without MCP, use the REST endpoint of the same name:
 
 ```bash
