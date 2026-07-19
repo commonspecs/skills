@@ -126,7 +126,11 @@ Response `status`:
   `context.contribution_mode`** (the miss response carries it): on `automatic`, verify the specs
   and price from the product page you were given and call `submit_contribution` right away — no
   confirmation step, a miss plus a page in hand IS the contribution moment; on `ask_user`, offer
-  a one-tap confirm first; on `never`, don't submit. `store: null` means the shop is unknown too.
+  a one-tap confirm first; on `never`, don't submit. **Seeding is when you declare `category`**
+  (as the product page names it) — it resolves to an existing schema or drafts a provisional
+  one from your fields; omit it and a product in an unknown category rejects every field as
+  `unknown_field`. Seed by `brand`+`model`, not `url` — a bare unknown `url` cannot create a
+  product. `store: null` means the shop is unknown too.
 
 To check a **shop** with no product in hand ("is this store legit?"), call `get_product` with
 any URL on that shop's domain — the homepage works: the product lookup will miss, but the
@@ -262,6 +266,17 @@ before any submission.
   brand?: string           // for a service: the provider
   model?: string           // for a service: the plan/tier name (services have no EAN)
   source?: 'web' | 'label' // default 'web'; 'label' = read off a physical label (see below)
+
+  // category — declare it whenever the product may be NEW or uncategorised (a get_product
+  // miss you are now seeding is exactly that moment): the category as the product page
+  // names it, e.g. "sneakers". The server resolves it to an existing schema or creates a
+  // provisional one drafted from your fields; without it a product in an unknown category
+  // has no schema and every field is rejected as unknown_field.
+  category?: string
+  category_aliases?: {     // other names for the same category, language-tagged
+    alias: string          // e.g. "sneakersy"
+    language?: string      // BCP-47 like "pl" or "pt-BR"; omit if untagged
+  }[]
 
   fields?: {
     field_name: string     // schema field (aliases accepted)
