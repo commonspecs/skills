@@ -123,10 +123,14 @@ Response `status`:
   **Seeding is when you declare `category`**
   (as the product page names it) — it resolves to an existing schema or drafts a provisional
   one from your fields; omit it and a product in an unknown category rejects every field as
-  `unknown_field`. Seed with exactly ONE product key — `url` OR `brand`+`model`, never both
-  (two keys are rejected: `provide exactly one product key`); `url` alone is a valid seed when
-  `category` rides along (observed 2026-07-20 — an earlier claim that a bare `url` cannot
-  create a product was wrong). `store: null` means the shop is unknown too.
+  `unknown_field`. **Pass every product key you have** — `url`, `ean`, `brand`+`model`, in any
+  combination (at least one). The keys must identify the same product: keys resolving to
+  different products return a 409 `conflict` carrying the `product_ids` — retry with only the
+  intended product's key. Agreeing keys enrich the record's identity (a canonical url, alt
+  url, or ean it lacks is backfilled). Creating a NEW product needs `brand`+`model` in the
+  submission — `url`/`ean` alone cannot create one, so a seed after a url miss is the url
+  PLUS the brand and model you just read off the page. `store: null` means the shop is
+  unknown too.
 
 To check a **shop** with no product in hand ("is this store legit?"), call `get_product` with
 any URL on that shop's domain — the homepage works: the product lookup will miss, but the
@@ -253,8 +257,10 @@ before any submission.
 
 ```ts
 {
-  // product identity — exactly ONE of url | ean | brand+model (creates the product if
-  // new); omit all three when sending a store block alone
+  // product identity — every key you have: url, ean, brand+model, any combination (at
+  // least one; they must identify the same product — disagreement is a 409 conflict, and
+  // brand+model is what creates the product if new); omit all when sending a store block
+  // alone
   url?: string
   ean?: string
   brand?: string           // for a service: the provider
@@ -373,5 +379,8 @@ Same handling on both transports (over MCP these surface as tool errors):
   reconnect may be impossible in the session); only if REST also fails, ask me to
   reconnect the server.
 - `403` forbidden → no access; don't retry.
+- `409` conflict (submit_contribution) → the product keys you sent resolve to different
+  products; the body carries their `product_ids`. Look them up, pick the intended one, and
+  resubmit with only its key — never guess-merge.
 - `429` rate limited → back off and retry with exponential delay (e.g. 1s, 2s, 4s, max 3).
 - `5x` / network → retry once or twice with backoff, then report the failure plainly.
