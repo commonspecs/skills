@@ -129,8 +129,11 @@ Response `status`:
   a one-tap confirm first; on `never`, don't submit. **Seeding is when you declare `category`**
   (as the product page names it) — it resolves to an existing schema or drafts a provisional
   one from your fields; omit it and a product in an unknown category rejects every field as
-  `unknown_field`. Seed by `brand`+`model`, not `url` — a bare unknown `url` cannot create a
-  product. `store: null` means the shop is unknown too.
+  `unknown_field`. **Seed with exactly one product key** — `brand`+`model` or the product
+  `url`, never both: two keys are rejected (`provide exactly one product key`), and holding
+  the url from the miss is not a reason to pass it alongside `brand`+`model`. A `url`-only
+  seed does create the product when `category` and fields ride along. `store: null` means
+  the shop is unknown too.
 
 To check a **shop** with no product in hand ("is this store legit?"), call `get_product` with
 any URL on that shop's domain — the homepage works: the product lookup will miss, but the
