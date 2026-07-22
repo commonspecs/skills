@@ -53,7 +53,7 @@ do not call the API.
 commonspecs never makes buying decisions — it returns facts. Recommending is your job: weigh the
 returned specs against my goals and help me choose. You don't fetch or store those goals
 separately. **Every read carries a `context` block — even one that found nothing** — with
-my standing goals, resolved server-side:
+my standing goals, resolved server-side. Example:
 
 ```json
 "context": {
@@ -77,8 +77,7 @@ locality this time") without changing anything stored.
 
 ## Tools
 
-Five tools; each one's contract — arguments and response — is described in its own section
-below. Over MCP, call a tool by name; without MCP, use the REST endpoint of the same name:
+Five tools; each one's contract is described in its own section below. Over MCP, call a tool by name; without MCP, use the REST endpoint of the same name:
 
 ```bash
 set -a && source .env && set +a && curl -sS -X POST "https://api.commonspecs.com/v1/<tool>" \
@@ -112,25 +111,22 @@ knowledge facts the database already holds — never do that. In the other direc
 re-fetch: you already hold whatever a prior call returned in this conversation.
 
 Response `status`:
-- `hit` — one product. Body: `product`, `missing_fields`
-  (the specs the record still lacks — what to contribute), `offers` (the full
-  price list, best offer first — see below), `fields`, `low_confidence_fields`,
-  `enrichment_opportunities` (see below). A thin hit is an enrichment moment — see
-  "A hit is also a contribution moment" below.
+- `hit` — one product: its specs (see "Reading a response" below) and its `offers` (see
+  below). A thin hit is an enrichment moment — see "A hit is also a contribution moment".
 - `candidates` — several variants matched (`candidates: [...]`); ask me which, then get it by that candidate's `id`.
 - `miss` — the product isn't on record. **Check `store` before anything else:** on a `url`
-  miss whose shop IS known, `store` carries `merchant`, `merchant_country`, and `markets[]`
-  (per destination market: `ships_from_countries`, `returns_to_countries`, `dropshipping`).
+  miss whose shop IS known, `store` carries the shop's per-market fulfilment record.
   Report those store facts to me first — `dropshipping: true` or a non-local return
-  destination often decides the purchase on its own. **Then seed the product per
-  `context.contribution_mode`** (the miss response carries it): on `automatic`, verify the specs
-  and price from the product page you were given and call `submit_contribution` right away — no
-  confirmation step, a miss plus a page in hand IS the contribution moment; on `ask_user`, offer
-  a one-tap confirm first; on `never`, don't submit. **Seeding is when you declare `category`**
+  destination often decides the purchase on its own. **Then seed the product** per
+  `context.contribution_mode` — a miss plus a page in hand IS the contribution moment: verify
+  the specs and price from the product page I gave you and `submit_contribution`.
+  **Seeding is when you declare `category`**
   (as the product page names it) — it resolves to an existing schema or drafts a provisional
   one from your fields; omit it and a product in an unknown category rejects every field as
-  `unknown_field`. Seed by `brand`+`model`, not `url` — a bare unknown `url` cannot create a
-  product. `store: null` means the shop is unknown too.
+  `unknown_field`. Seed with exactly ONE product key — `url` OR `brand`+`model`, never both
+  (two keys are rejected: `provide exactly one product key`); `url` alone is a valid seed when
+  `category` rides along (observed 2026-07-20 — an earlier claim that a bare `url` cannot
+  create a product was wrong). `store: null` means the shop is unknown too.
 
 To check a **shop** with no product in hand ("is this store legit?"), call `get_product` with
 any URL on that shop's domain — the homepage works: the product lookup will miss, but the
@@ -145,33 +141,28 @@ unavailable. If you then research a local price, contribute it per `contribution
 **Offers in the response.** `offers` is price observations, **best offer first** — lowest landed
 price softened by recency, so the ordering itself is the freshness signal (there is no timestamp
 in the response) — and **never hidden by age**: a week-old price still shows, just lower in the
-order. `offers[0]` is the best offer for the market.
+order.
 
 ```ts
-// offers[]
+// offers[] — only the fields that need explaining; the rest (merchant, price, currency,
+// shipping_cost, channel, availability_status) says what it is
 {
-  merchant: string
   merchant_country: string       // where the shop is BASED — a DE shop shipping to PL…
   country_code: string           // …vs where this offer SHIPS TO: "DE" / "PL"
   ships_from_countries: string[] // observed actual dispatch origins
   returns_to_countries: string[] // where the store told buyers to send returns
   dropshipping: boolean | null   // reported store assessment; null = unknown
-  channel: 'online' | 'in_store'
-  price: number
-  currency: string               // ISO 4217
-  shipping_cost: number
-  landed_price: number           // price + shipping
+  landed_price: number           // price + shipping — the number to compare
   billing_period: 'monthly' | 'quarterly' | 'yearly' | null // null = one-time purchase
   delivery_days: number | null   // observed door-to-door days
-  availability_status: string
 }
 ```
 
-The fulfilment fields (`ships_from_countries`, `returns_to_countries`, `dropshipping`) are a third
-axis beyond the two countries, recorded per **(store, destination market)** — a chain like
-zara.com serves PL and US from different warehouses, so each offer shows only what was observed
-for its own market. The country arrays are **sets** that accumulate: H&M serves PL from both PL
-and DE warehouses (empty = not observed there yet, not "ships from nowhere"). A storefront
+The fulfilment fields (`ships_from_countries`, `returns_to_countries`, `dropshipping`) are
+recorded per **(store, destination market)** — a chain serves PL and US from different
+warehouses, so each offer shows only its own market's observations — and the country arrays are
+**sets** that accumulate (H&M ships PL orders from both PL and DE warehouses; empty = not
+observed there yet, not "ships from nowhere"). A storefront
 "based" in my country can still dispatch from and take returns in another — a non-local entry in
 `returns_to_countries` is the strongest dropship signal and often decides whether returning is
 economically viable, so surface it (and `dropshipping: true`) when I weigh a purchase. Use
@@ -183,10 +174,15 @@ spec quality: weigh `landed_price` against the spec quality and my `user_goal` y
 
 **A hit is also a contribution moment.** A miss obviously calls for seeding — but a *thin* hit
 calls for enrichment just as strongly: a non-empty `missing_fields`, fields flagged
-`needs_corroboration`, or anything in `enrichment_opportunities`. When you see one, don't
+`needs_corroboration`, or anything in `enrichment_opportunities`. **Beware the emptiest hit of
+all:** a hit with `category: null` and empty `fields` has no schema, so the server *cannot*
+list its gaps — `missing_fields` and `enrichment_opportunities` come back empty even though
+the record holds nothing. Empty trigger lists on an uncategorised hit mean "everything is
+missing", not "nothing is": treat it exactly like a miss-seed — fetch the page, declare
+`category`, submit the specs. When you see any of these, don't
 stop at reporting the gaps: fetch the manufacturer's product page (and the store page I gave
 you), read the missing or unconfirmed values off it, and `submit_contribution` per
-`context.contribution_mode` — on `automatic`, right away, no confirmation step. Every independent
+`context.contribution_mode`. Every independent
 source corroborating a field raises its confidence toward 1.0, and every newly covered field closes
 a `missing_fields` gap — a lookup that leaves the record no better than it found it wastes a
 page you already had in hand.
@@ -211,9 +207,8 @@ one product.
 Results are ranked best-first by spec quality (thin-data products sort last) and **prefer my
 market**: products with a confirmed offer where I buy come as the normal tier. When **no** product
 has a confirmed offer there, the same candidates return spec-ranked with a top-level
-`availability: "unconfirmed"` — report the specs, but say availability in my market still needs
-checking; never assert it (and if you then find a live local price, contribute it per
-`contribution_mode`).
+`availability: "unconfirmed"` — same rule as empty `offers` on `get_product`: report the
+specs, never assert unavailability.
 
 **Category slugs come from the response — never guess one.** A query result set carries
 `matched_categories`: the canonical slug(s) the free-text query resolved to. That is where you get a
@@ -231,9 +226,8 @@ number+unit), and a filter matches multi-valued facts too — a dress sold in fo
 `"colour": "yellow"`. Two consequences to handle honestly: a product *missing* the field is
 filtered out (thin coverage under-returns — when results look sparse, say the filter only sees
 recorded facts and offer to re-run without it), and an unknown field name returns a 400 listing
-the filterable fields — pick from that list, don't guess again. The response echoes
-`filters_applied` (canonical names and values, so you can show me what actually constrained
-the search).
+the filterable fields — pick from that list, don't guess again. When results look off, show
+me `filters_applied` — what actually constrained the search after canonicalisation.
 
 ### compare_products — side-by-side on hard specs
 
@@ -349,15 +343,12 @@ corrected value itself, use `submit_contribution`.
 }
 ```
 
-Response: `{"status":"flagged","flag_id":"…"}`.
-
 ## Reading a response
 
 `missing_fields` lists the specs a record still lacks (what to contribute); it rides in every
 `get_product` response. A long `missing_fields` often means *thin data*, not a bad product, so
-reason about trade-offs from the facts themselves. Each field in
-`fields` / `low_confidence_fields` has `value`, `confidence` (0–1), `disputed`,
-`needs_corroboration`, and (when disputed) `alternate_claims`.
+reason about trade-offs from the facts themselves. Each spec field carries its `value` plus
+the trust signals below:
 
 - **`fields[]`** — confidence ≥ 0.4. Trustworthy enough to state. Still surface the
   number; "13.5 oz (confidence 0.88)" beats a bare "13.5 oz".
