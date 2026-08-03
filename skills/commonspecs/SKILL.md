@@ -123,13 +123,13 @@ Response `status`:
   **Seeding is when you declare `category`**
   (as the product page names it) — it resolves to an existing schema or drafts a provisional
   one from your fields; omit it and a product in an unknown category rejects every field as
-  `unknown_field`. **Pass every product key you have** — `url`, `ean`, `brand`+`model`, in any
+  `unknown_field`. **Pass every product key you have** — `url`, `ean`, `brand`+`name`, in any
   combination (at least one). The keys must identify the same product: keys resolving to
   different products return a 409 `conflict` carrying the `product_ids` — retry with only the
   intended product's key. Agreeing keys enrich the record's identity (a canonical url, alt
-  url, or ean it lacks is backfilled). Creating a NEW product needs `brand`+`model` in the
+  url, or ean it lacks is backfilled). Creating a NEW product needs `brand`+`name` in the
   submission — `url`/`ean` alone cannot create one, so a seed after a url miss is the url
-  PLUS the brand and model you just read off the page. `store: null` means the shop is
+  PLUS the brand and name you just read off the page. `store: null` means the shop is
   unknown too.
 
 To check a **shop** with no product in hand ("is this store legit?"), call `get_product` with
@@ -188,7 +188,7 @@ one product.
 ```ts
 {
   // query and/or category — at least one
-  query?: string        // brand, model, or free-text need — fuzzy, typo-tolerant
+  query?: string        // brand, name, or free-text need — fuzzy, typo-tolerant
   category?: string     // slug from matched_categories, never guessed; alone = browse it
   filters?: { [field_name: string]: unknown } // needs category — its schema defines the fields
   country_code?: string // ISO 3166-1 alpha-2 — override my saved market
@@ -259,14 +259,14 @@ price is far out of line with its category comes back flagged `price_review`.
 
 ```ts
 {
-  // product identity — every key you have: url, ean, brand+model, any combination (at
+  // product identity — every key you have: url, ean, brand+name, any combination (at
   // least one; they must identify the same product — disagreement is a 409 conflict, and
-  // brand+model is what creates the product if new); omit all when sending a store block
+  // brand+name is what creates the product if new); omit all when sending a store block
   // alone
   url?: string
   ean?: string
   brand?: string           // for a service: the provider
-  model?: string           // for a service: the plan/tier name (services have no EAN)
+  name?: string            // product or service name; for a service, the plan/tier name
   source?: 'web' | 'label' // default 'web'; 'label' = read off a physical label (see below)
 
   // category — declare it whenever the product may be NEW or uncategorised (a get_product
