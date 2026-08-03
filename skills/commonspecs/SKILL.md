@@ -123,10 +123,9 @@ Response `status`:
   **Seeding is when you declare `category`**
   (as the product page names it) — it resolves to an existing schema or drafts a provisional
   one from your fields; omit it and a product in an unknown category rejects every field as
-  `unknown_field`. Seed with exactly ONE product key — `url` OR `brand`+`model`, never both
-  (two keys are rejected: `provide exactly one product key`); `url` alone is a valid seed when
-  `category` rides along (observed 2026-07-20 — an earlier claim that a bare `url` cannot
-  create a product was wrong). `store: null` means the shop is unknown too.
+  `unknown_field`. **Creating** a product needs `brand`+`model` — an unknown `url` alone resolves
+  to nothing and comes back `404 provide brand+model to create it`; pass the `url` too, it binds
+  the page to the product. `store: null` means the shop is unknown too.
 
 To check a **shop** with no product in hand ("is this store legit?"), call `get_product` with
 any URL on that shop's domain — the homepage works: the product lookup will miss, but the
@@ -141,22 +140,11 @@ unavailable. If you then research a local price, contribute it per `contribution
 **Offers in the response.** `offers` is price observations, **best offer first** — lowest landed
 price softened by recency, so the ordering itself is the freshness signal (there is no timestamp
 in the response) — and **never hidden by age**: a week-old price still shows, just lower in the
-order.
-
-```ts
-// offers[] — only the fields that need explaining; the rest (merchant, price, currency,
-// shipping_cost, channel, availability_status) says what it is
-{
-  merchant_country: string       // where the shop is BASED — a DE shop shipping to PL…
-  country_code: string           // …vs where this offer SHIPS TO: "DE" / "PL"
-  ships_from_countries: string[] // observed actual dispatch origins
-  returns_to_countries: string[] // where the store told buyers to send returns
-  dropshipping: boolean | null   // reported store assessment; null = unknown
-  landed_price: number           // price + shipping — the number to compare
-  billing_period: 'monthly' | 'quarterly' | 'yearly' | null // null = one-time purchase
-  delivery_days: number | null   // observed door-to-door days
-}
-```
+order. The fields say what they are, except two traps: `merchant_country` is where the shop is
+**based** vs `country_code` where the offer **ships to** (a DE shop shipping to PL is
+"DE"/"PL"), and `landed_price` (price + shipping) — not `price` — is the number to compare. `price_per_litre`
+is derived by the server from the product's recorded volume; it exists so nobody has to compute one,
+and so nobody has to submit one.
 
 The fulfilment fields (`ships_from_countries`, `returns_to_countries`, `dropshipping`) are
 recorded per **(store, destination market)** — a chain serves PL and US from different
@@ -196,13 +184,21 @@ one product.
 {
   // query and/or category — at least one
   query?: string        // brand, model, or free-text need — fuzzy, typo-tolerant
-  category?: string     // slug from matched_categories, never guessed; alone = the leaderboard
+  category?: string     // slug from matched_categories, never guessed; alone = browse it
   filters?: { [field_name: string]: unknown } // needs category — its schema defines the fields
   country_code?: string // ISO 3166-1 alpha-2 — override my saved market
-  page?: number         // default 1; the response echoes page, page_size, has_more
-  page_size?: number    // default 10, max 20
+  page?: number         // default 1; results come TEN to a page, always — there is no size knob
 }
+
+A query that DESCRIBES a kind of product ("piwo bezalkoholowe", "linen shirt") already comes back
+ranked across that kind — one call, no follow-up browse. A query that NAMES one ("Corona Cero")
+stays a lookup.
 ```
+
+Each result carries `specs` — the product's values for the fields the ranking is made of — and
+`missing_fields`, the ones it has no value for. Say WHY the order is what it is from those facts,
+and treat a long `missing_fields` as the finding it is: a product that discloses nothing has not
+merely failed to rank, it has told you something.
 
 Results are ranked best-first by spec quality (thin-data products sort last) and **prefer my
 market**: products with a confirmed offer where I buy come as the normal tier. When **no** product
@@ -239,8 +235,8 @@ Use when I name **two or more** specific products to choose between.
 }
 ```
 
-Returns `products` — ordered best-first by spec quality — and a `comparison` matrix
-(`[{field, cells: {<product_id>: {value, confidence} | null}}]`). Present the facts side by side and
+Returns `products` — ordered best-first by spec quality — and a field-by-field `comparison`
+matrix with per-cell confidence. Present the facts side by side and
 explain the trade-off yourself from the facts — the API deliberately does not return per-dimension
 winners or a rationale; the value-vs-cost and fitness-for-purpose judgement is yours to make from
 the data.
@@ -251,10 +247,16 @@ One submission carries `fields` and/or an `offer` and/or a `store` block (an `of
 cheapest to capture from the same page you read the specs off). Respect `contribution_mode`
 before any submission.
 
+**The price is the price of the thing as sold — never a per-litre or per-kilo figure.** Shops print
+both, side by side, in the same format; taking the wrong one is the single easiest way to poison a
+price history. The server derives the per-unit number itself, and an offer whose implied per-unit
+price is far out of line with its category comes back flagged `price_review`.
+
 ```ts
 {
-  // product identity — exactly ONE of url | ean | brand+model (creates the product if
-  // new); omit all three when sending a store block alone
+  // product identity — pass EVERY key you have (at least one); they enrich one identity, and
+  // keys resolving to different products come back 409 (retry with the intended one alone).
+  // brand+model is what CREATES a new product. Omit all keys when sending a store block alone.
   url?: string
   ean?: string
   brand?: string           // for a service: the provider
