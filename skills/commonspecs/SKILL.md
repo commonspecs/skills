@@ -88,9 +88,9 @@ set -a && source .env && set +a && curl -sS -X POST "https://api.commonspecs.com
 
 Requests and responses are identical on both transports.
 
-### get_product — one product's specs and offers
+### get_product — one item's specs and offers
 
-Drill into one known product by a single exact key. Returns its engineering-grade specs
+Drill into one known product or service by a single exact key. Returns its engineering-grade specs
 (with per-field confidence) and its price `offers`, in a single call.
 
 ```ts
@@ -180,10 +180,10 @@ source corroborating a field raises its confidence toward 1.0, and every newly c
 a `missing_fields` gap — a lookup that leaves the record no better than it found it wastes a
 page you already had in hand.
 
-### search_products — find or browse products, best first
+### search_products — find or browse the catalogue, best first
 
-Use this when I ask "what should I buy in <category>" or "the best X", rather than naming
-one product.
+Covers services as well as products. Use this when I ask "what should I buy in <category>" or
+"the best X", rather than naming one item.
 
 ```ts
 {
@@ -232,11 +232,17 @@ me `filters_applied` — what actually constrained the search after canonicalisa
 
 ### compare_products — side-by-side on hard specs
 
-Use when I name **two or more** specific products to choose between.
+Use when I name **two or more** specific products or services to choose between.
+
+This tool takes ids and nothing else — there is no way to compare by name, URL or EAN. Resolve
+each item first (`search_products` by text, or `get_product` by `url` / `ean`), read the `id` off
+each result, and pass those. So comparing something I have in front of me is two steps, not one:
+look it up, then compare. An item that is not in the catalogue yet has no id — contribute it with
+`submit_contribution` first, then compare.
 
 ```ts
 {
-  product_ids: string[] // 2–5 ids from prior reads
+  product_ids: string[] // 2–5 ids, each taken from a search_products / get_product result
 }
 ```
 
