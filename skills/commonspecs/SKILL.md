@@ -328,8 +328,10 @@ answers to.
                            // rides here; omit for a one-time purchase
     channel?: 'online' | 'in_store' // default 'online'; a shelf price is 'in_store'
     shipping_cost?: number
-    observed_at?: string   // UTC datetime ("2026-08-07T17:32:00Z") or a bare date
-                           // ("2026-08-07"); an offset form like "+02:00" is rejected and
+    observed_at?: string   // an ISO 8601 INSTANT — UTC ("2026-08-07T17:32:00Z") or your own
+                           // offset ("2026-08-07T19:32:00+02:00") — or a bare date
+                           // ("2026-08-07"), read as midnight UTC. A zone-less local time
+                           // ("2026-08-07T19:32:00") names no instant, so it is rejected and
                            // takes the WHOLE submission with it. Defaults to now.
     source_url?: string
     // order-experience facts — how an order ACTUALLY went:
