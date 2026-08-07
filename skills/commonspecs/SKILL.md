@@ -158,10 +158,15 @@ warehouses, so each offer shows only its own market's observations — and the c
 observed there yet, not "ships from nowhere"). A storefront
 "based" in my country can still dispatch from and take returns in another — a non-local entry in
 `returns_to_countries` is the strongest dropship signal and often decides whether returning is
-economically viable, so surface it (and `dropshipping: true`) when I weigh a purchase. Use
-`merchant_country` for my locality goal: when the `user_goal` restricts to local shops the
-results are already domestic-only; when it merely favours local, prefer offers whose
-`merchant_country` matches the market. Many prices across shops are all true at once —
+economically viable, so surface it (and `dropshipping: true`) when I weigh a purchase.
+
+An offer names the shop's home and the shop's owners as two different fields, and the server's own
+locality filter only knows the first: `local_only` narrows results to merchants **based** in my
+market, so a foreign-owned storefront registered here passes it untouched. `merchant_country` is
+therefore the "local seller" half of the goal, and `merchant_owner_capital_country` — the shop's
+owning capital, ordered largest holder first, the same form a product's `owner_capital_country`
+takes — is the whose-money half, which nothing filters for me. `null` there means nobody has filed
+it, never "domestic". Many prices across shops are all true at once —
 observations, never disputed against each other. Price is deliberately **not** part of the
 spec quality: weigh `landed_price` against the spec quality and my `user_goal` yourself.
 
@@ -336,6 +341,10 @@ answers to.
   store?: {                // a shop fact — needs no product: alone or alongside the rest
     store: string          // shop domain
     country: string        // the destination market the experience concerns
+    owner_capital_country?: string[] // who owns the SHOP — ordered, largest holder first; neither
+                           // where it is based nor where it ships from. A bare assertion here, like
+                           // the rest of this block; BRAND ownership goes through `fields` instead,
+                           // where it takes source_url and snippet
     dropshipping?: boolean // set when the fulfilment pattern shows it; omit when unknown
     ships_from_country?: string
     returns_to_country?: string
@@ -348,6 +357,26 @@ A shop that ships to several countries is several offers — one per destination
 colours is one `colour` claim, never four entries (separate entries register as *competing*
 claims and mark the field disputed); array members canonicalise individually and each is
 matchable by search filters.
+
+**`owner_capital_country` is the one field every product takes, in every category.** It is a fact
+about the OWNER rather than the SKU, so the server files it against the **brand**: contribute it
+once and it publishes on everything that brand sells, and a change of owner is one correction
+instead of one per product. Four consequences for a submission:
+
+- **No category needed.** It never bounces as `unknown_field`, not even on an uncategorised
+  product, and it stands alone — "this brand is owned from Japan and South Korea" is a complete
+  submission with nothing but the product keys beside it.
+- **The value is an ORDERED list of ISO 3166-1 alpha-2 codes, largest capital holder first.**
+  `["JP","KR"]` is owned mostly from Japan and partly from South Korea; a single entry means sole
+  ownership (a bare `"JP"` is accepted and read as that). The order IS the claim, so the same two
+  countries the other way round is a different claim and competes with this one.
+- **A shorter list contained in a longer one, in the same order, corroborates it.** A source naming
+  only the majority owner raises the confidence of the fuller list instead of disputing it, so
+  filing `["JP"]` off a page that names one owner is safe even when the fuller truth is already on
+  record. Never pad a list to look complete: what you cannot source, leave out.
+- **The company register you read it from is `fields[].source_url`.** One register page backs many
+  products, so it is exactly the address that must never become the product's `url` (see the three
+  urls above).
 
 **Order-experience facts are contributions too.** The two countries on an offer are store facts
 **per destination market**: persisted keyed on (store, the offer's `country`), and each market's
