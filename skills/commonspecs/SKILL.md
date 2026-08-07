@@ -136,7 +136,8 @@ To check a **shop** with no product in hand ("is this store legit?"), call `get_
 any URL on that shop's domain — the homepage works: the product lookup will miss, but the
 `store` block returns what buyers observed about the store. What you learn beyond it (a
 non-local dispatch, a returns address abroad) goes back via `submit_contribution`'s `store`
-block.
+block. A shop with no website has no URL to ask with, so this read has no equivalent for one —
+writing about it still works (see the place form under `submit_contribution`).
 
 When `offers` is **empty** (no offer on record in my market), report the specs
 but say that **availability in my country still needs checking** — don't assert it's
@@ -317,7 +318,8 @@ answers to.
   }[]
 
   offer?: {                // a dated price observation
-    store: string          // shop domain or URL — the store's identity
+    store: string | { name: string; country: string; locality: string } // the store's identity:
+                           // its domain/URL, or — for a shop with NO WEBSITE — a place (see below)
     country: string        // ISO 3166-1 alpha-2 — the DELIVERY destination, never the
                            // shop's home country (the server resolves that from store)
     price: number
@@ -341,7 +343,7 @@ answers to.
   }
 
   store?: {                // a shop fact — needs no product: alone or alongside the rest
-    store: string          // shop domain
+    store: string | { name: string; country: string; locality: string } // domain, or a place
     country: string        // the destination market the experience concerns
     owner_capital_country?: string[] // who owns the SHOP — ordered, largest holder first; neither
                            // where it is based nor where it ships from. A bare assertion here, like
@@ -355,6 +357,24 @@ answers to.
 ```
 
 A shop that ships to several countries is several offers — one per destination you observed.
+
+**A shop with no website is identified as a place, and only as all three parts of one.** A market
+stall, a kiosk, a single bakery, a franchise counter: there is no domain to send, and a bare
+`"Piekarnia"` is a global collision rather than an identity, so the server refuses it — and the
+refusal takes the whole submission with it. Send instead what the buyer standing in front of the
+shop always knows: `{ name, country, locality }`. Three things follow.
+
+- **`locality` is not optional politeness.** It is what keeps two shops called "Piekarnia" two
+  records. A `name` + `country` pair without it is refused exactly like a bare name.
+- **Put the sign in `name`, verbatim.** Do not translate, transliterate, expand or tidy it — the
+  server folds the name itself to build the key and keeps your text for display. "Piekarnia u
+  Marioli" stays that, accents included.
+- **A chain is still its domain, even at the till.** A shelf price at Żabka is `store: "zabka.pl"`
+  with `channel: 'in_store'`; one place row per branch would shred a shop that already has one key.
+
+This is the only way a purchase made in a shop that never had a website gets recorded at all, so
+reach for it whenever I describe buying something in person from a place I can name.
+
 **A multi-valued attribute is ONE field whose value is an array** — a product sold in four
 colours is one `colour` claim, never four entries (separate entries register as *competing*
 claims and mark the field disputed); array members canonicalise individually and each is
