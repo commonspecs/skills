@@ -263,6 +263,22 @@ both, side by side, in the same format; taking the wrong one is the single easie
 price history. The server derives the per-unit number itself, and an offer whose implied per-unit
 price is far out of line with its category comes back flagged `price_review`.
 
+**Three kinds of url arrive here and each makes a different claim, so each has its own home.**
+A product is deliberately reachable through many addresses — its own page, every shop that
+stocks it — so putting one in the wrong slot rarely bounces; it quietly widens what the product
+answers to.
+
+- **`url`** asserts identity: *this page is the product*. The manufacturer's page for it, or the
+  storefront listing you are treating as its canonical address. This is the only url bound to
+  the product.
+- **`offer.source_url`** says *this shop sells it here*. It belongs on the offer row, next to the
+  merchant, price and market, which is strictly more than the same string says anywhere else.
+  Fifty shops are fifty offers, and a buyer pasting any of those fifty links still lands on the
+  product.
+- **`fields[].source_url`** says only *where a value was read*. A company register, a spec sheet,
+  a standards document legitimately backs many different products, so it must never name one.
+  Never promote such a page to `url` just because it is the only address you have.
+
 ```ts
 {
   // product identity — every key you have: url, ean, brand+name, any combination (at
@@ -288,10 +304,11 @@ price is far out of line with its category comes back flagged `price_review`.
 
   fields?: {
     field_name: string     // schema field (aliases accepted)
-    value: string | number | (string | number)[] // exactly as printed; multi-valued
+    value: string | number | (string | number)[] // free text in ENGLISH (see below); multi-valued
                            // attribute = ONE field with an array value (see below)
     source_url?: string    // the page you read the value from
-    snippet?: string       // verbatim text containing the value — evidence earns confidence
+    snippet?: string       // verbatim run of the page's TEXT containing the value, in the page's
+                           // own language — evidence earns confidence (see below)
   }[]
 
   offer?: {                // a dated price observation
@@ -306,7 +323,9 @@ price is far out of line with its category comes back flagged `price_review`.
                            // rides here; omit for a one-time purchase
     channel?: 'online' | 'in_store' // default 'online'; a shelf price is 'in_store'
     shipping_cost?: number
-    observed_at?: string   // ISO 8601; defaults to now
+    observed_at?: string   // UTC datetime ("2026-08-07T17:32:00Z") or a bare date
+                           // ("2026-08-07"); an offset form like "+02:00" is rejected and
+                           // takes the WHOLE submission with it. Defaults to now.
     source_url?: string
     // order-experience facts — how an order ACTUALLY went:
     delivery_days?: number      // door-to-door, whole days
@@ -343,6 +362,27 @@ Physical world: if I show a photo of a label/product, **read the values and the 
 and send only the extracted values** — the photo never leaves my machine. Look the product up
 by `ean` first, then contribute the missing `fields` with `"source": "label"`.
 
+**Evidence is checked literally, so quote the page and not your reading of it.** Verification
+looks for your `snippet` in the page's text and for the `value` inside that snippet; a paraphrase
+is a substring of nothing, so the field bounces (`snippet_not_on_page`, `value_not_in_snippet`)
+and the value falls back to your bare word. Two consequences worth knowing before you submit:
+
+- **Pull the raw text, never a summarising fetch tool's output.** Such a tool reflows and
+  relabels as it reads — "Energia: 117 kJ" for a page that prints "Energy value: 117 kJ" — and
+  the rewrite is invisible to you. Fetch the page and strip the tags, then copy the run of text
+  that literally prints the value, label included. Markup between label and value is fine;
+  reworded labels and stripped diacritics are not.
+- **The value goes in English; the snippet stays in the page's language.** The catalog is one
+  shared vocabulary, and the same fact filed in two languages does not corroborate itself — it
+  competes, splitting the evidence and lowering confidence on both sides. Canonicalisation
+  merges units and enums but cannot merge prose without guessing. So translate the `value`,
+  quote the `snippet` verbatim in whatever language the page uses, and present the answer back
+  to me in mine. Translating is your job, not the buyer's.
+
+**Read the response before reporting success.** A submission that landed as a *competing* claim
+still comes back `accepted`: it is `message_to_model` that names the fields which went disputed.
+Say so when it does, rather than leaving the split to surface on some later read.
+
 ### flag_stale — mark a fact or price as stale or wrong
 
 When I (or a page you just read) contradict a value or price a read returned, flag it:
@@ -351,9 +391,12 @@ corrected value itself, use `submit_contribution`.
 
 ```ts
 {
-  product_id: string  // from a prior read
-  field_name?: string // e.g. "fabric_weight"; omit to flag the whole product
-  reason?: string     // what looks wrong and what you saw instead ("site now says 12 oz")
+  product_id: string          // from a prior read
+  field_name?: string         // e.g. "fabric_weight"; omit to flag the whole product
+  reason?: string             // what looks wrong and what you saw instead ("site now says 12 oz")
+  proposed_value?: string | number // what you believe it should be, as a VALUE not a sentence —
+                              // the reviewer reads it as a diff against the live one. Omit when
+                              // you are only reporting a doubt and have no replacement.
 }
 ```
 
