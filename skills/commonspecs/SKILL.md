@@ -325,6 +325,9 @@ answers to.
     source_url?: string    // the page you read the value from
     snippet?: string       // verbatim run of the page's TEXT containing the value, in the page's
                            // own language — evidence earns confidence (see below)
+    value_as_written?: string // the value EXACTLY as the page prints it, in the page's own
+                           // language and units — send it whenever translating `value` to
+                           // English re-worded it out of the snippet (see below)
   }[]
 
   offer?: {                // a dated price observation
@@ -443,6 +446,17 @@ and the value falls back to your bare word. Two consequences worth knowing befor
   merges units and enums but cannot merge prose without guessing. So translate the `value`,
   quote the `snippet` verbatim in whatever language the page uses, and present the answer back
   to me in mine. Translating is your job, not the buyer's.
+- **A translated value needs `value_as_written`, or it bounces on its own translation.** The
+  literal check has no dictionary: an English `value` is a substring of no Polish snippet, so a
+  correctly translated field bounces `value_not_in_snippet` with nothing wrong but the language.
+  Send the value **exactly as the page prints it** as `value_as_written` — that is the half
+  verification looks for inside your quote, while the English `value` is what the catalog files.
+  The two halves must agree on everything translation cannot change — numbers, units, additive
+  codes, how many items a list holds — because the server cross-checks them and rejects a
+  contradiction (`translation_diverges`, naming the mismatch per field). A curated enum alias can
+  snap a foreign word by itself ("Weissbier" → "Wheat"), but that net is only as wide as the
+  alias list — whenever the page's wording differs from the English `value` at all, sending
+  `value_as_written` costs nothing and saves the bounce.
 
 **Read the response before reporting success.** A submission that landed as a *competing* claim
 still comes back `accepted`: it is `message_to_model` that names the fields which went disputed.
