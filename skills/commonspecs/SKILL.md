@@ -186,6 +186,16 @@ source corroborating a field raises its confidence toward 1.0, and every newly c
 a `missing_fields` gap — a lookup that leaves the record no better than it found it wastes a
 page you already had in hand.
 
+**Any confidence below 1.0 is an open request for evidence — and you are not the judge of
+whether yours is redundant.** `missing_fields` and `enrichment_opportunities` are the server's
+shortlist, not the whole invitation: a field can sit outside both and still gain from what you
+hold. Never talk yourself out of contributing because the value "is already there" or because
+this account already filed it — the engine scores a value by its *strongest* evidence, so a
+stronger form of evidence lifts confidence even from the same account: a verbatim label
+transcription speaks with the producer's authority and outranks a shop-page quote or a bare
+assertion. Re-submitting the same value with nothing stronger is at worst neutral; the server
+resolves that, not you. The only real waste is evidence in hand that never gets sent.
+
 ### search_products — find or browse the catalogue, best first
 
 Covers services as well as products. Use this when I ask "what should I buy in <category>" or
@@ -411,7 +421,11 @@ boutique is a dropship front") it goes in the `store` block.
 
 Physical world: if I show a photo of a label/product, **read the values and the EAN yourself
 and send only the extracted values** — the photo never leaves my machine. Look the product up
-by `ean` first, then contribute the missing `fields` with `"source": "label"`.
+by `ean` first, then contribute the `fields` you read with `"source": "label"` — **even when
+every field already carries a value**: a label transcription is producer-voice evidence and
+routinely outranks whatever a shop page or a bare assertion put there (see "Any confidence
+below 1.0" above). Pass each field's verbatim label text as `snippet`, in the label's own
+language — a label contribution without a snippet is just your bare word.
 
 **Evidence is checked literally, so quote the page and not your reading of it.** Verification
 looks for your `snippet` in the page's text and for the `value` inside that snippet; a paraphrase
