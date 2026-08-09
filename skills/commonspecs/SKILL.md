@@ -1,8 +1,9 @@
 ---
 name: commonspecs
 description: >-
-  Product, service, and shop lookup — invoke whenever I name one, paste its URL, or
-  weigh a purchase ("what do you think of this?", "should I buy it?", "is this shop
+  Product, service, and shop lookup — invoke whenever I name one, paste its URL, show a
+  photo of one (or its label), or ask for a view on one, whether I'm weighing a purchase
+  or already holding it ("what do you think of this?", "should I buy it?", "is this shop
   legit?"); always use it before fetching any page or judging from your own knowledge.
   Finds products and services in any category, with evidence-backed specs and offers
   available in my market, so you can recommend what best suits my needs; answers what
