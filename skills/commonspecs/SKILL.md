@@ -231,11 +231,10 @@ specs, never assert unavailability.
 **Category slugs come from the response — never guess one.** A query result set carries
 `matched_categories`: the canonical slug(s) the free-text query resolved to. That is where you get a
 slug to pass as the `category` filter — do not invent or hardcode it (a wrong slug just returns
-nothing, not a fuzzy match). When nothing matches you get `count: 0` with `did_you_mean` (the nearest
-category slugs) and, for a named category, a `message_to_user` and a `message_to_model` — follow the
-latter: typically answer me from your own knowledge, then contribute the specs of the
-product(s) we discussed with `submit_contribution`. There is no endpoint that lists the whole catalog;
-category discovery is always per-query through these fields.
+nothing, not a fuzzy match). When nothing matches you get `count: 0` with `did_you_mean` (the
+nearest category slugs) and a `message_to_model` carrying the server's own instruction — follow it.
+There is no endpoint that lists the whole catalog; category discovery is always per-query through
+these fields.
 
 **Spec filters — narrow by recorded facts.** Only products whose recorded **solid** facts
 satisfy every constraint return. Field names accept
@@ -373,21 +372,14 @@ answers to.
 A shop that ships to several countries is several offers — one per destination you observed.
 
 **A shop with no website is identified as a place, and only as all three parts of one.** A market
-stall, a kiosk, a single bakery, a franchise counter: there is no domain to send, and a bare
-`"Piekarnia"` is a global collision rather than an identity, so the server refuses it — and the
-refusal takes the whole submission with it. Send instead what the buyer standing in front of the
-shop always knows: `{ name, country, locality }`. Three things follow.
-
-- **`locality` is not optional politeness.** It is what keeps two shops called "Piekarnia" two
-  records. A `name` + `country` pair without it is refused exactly like a bare name.
-- **Put the sign in `name`, verbatim.** Do not translate, transliterate, expand or tidy it — the
-  server folds the name itself to build the key and keeps your text for display. "Piekarnia u
-  Marioli" stays that, accents included.
-- **A chain is still its domain, even at the till.** A shelf price at Żabka is `store: "zabka.pl"`
-  with `channel: 'in_store'`; one place row per branch would shred a shop that already has one key.
-
-This is the only way a purchase made in a shop that never had a website gets recorded at all, so
-reach for it whenever I describe buying something in person from a place I can name.
+stall, a kiosk, a single bakery: send what the buyer standing in front of it knows,
+`{ name, country, locality }`. A bare `"Piekarnia"` is a collision rather than an identity, so the
+server refuses it — and the refusal takes the whole submission with it. `locality` is what keeps
+two shops of that name two records, so it is never optional. Put the sign in `name` verbatim:
+no translating, expanding or tidying, accents included. But **a chain is still its domain, even at
+the till** — a shelf price at Żabka is `store: "zabka.pl"` with `channel: 'in_store'`, since one
+place row per branch would shred a shop that already has one key. Reach for the place form whenever
+I describe buying something in person from a shop I can name.
 
 **A multi-valued attribute is ONE field whose value is an array** — a product sold in four
 colours is one `colour` claim, never four entries (separate entries register as *competing*
@@ -397,7 +389,7 @@ matchable by search filters.
 **`owner_capital_country` is the one field every product takes, in every category.** It is a fact
 about the OWNER rather than the SKU, so the server files it against the **brand**: contribute it
 once and it publishes on everything that brand sells, and a change of owner is one correction
-instead of one per product. Four consequences for a submission:
+instead of one per product. Three consequences for a submission:
 
 - **No category needed.** It never bounces as `unknown_field`, not even on an uncategorised
   product, and it stands alone — "this brand is owned from Japan and South Korea" is a complete
@@ -410,31 +402,24 @@ instead of one per product. Four consequences for a submission:
   only the majority owner raises the confidence of the fuller list instead of disputing it, so
   filing `["JP"]` off a page that names one owner is safe even when the fuller truth is already on
   record. Never pad a list to look complete: what you cannot source, leave out.
-- **The company register you read it from is `fields[].source_url`.** One register page backs many
-  products, so it is exactly the address that must never become the product's `url` (see the three
-  urls above).
 
 **Order-experience facts are contributions too.** The two countries on an offer are store facts
-**per destination market**: persisted keyed on (store, the offer's `country`), and each market's
-knowledge is a **set** — observations accumulate (H&M ships PL orders from both PL and DE);
-nothing is ever overwritten. They may differ from where the shop claims to be based — a
-non-local return destination is the strongest dropship signal. So "it finally arrived after
-three weeks, shipped from China, and they want returns sent to China" is a contribution, not
-just a complaint — and with no product on hand (an order in transit, a returns email, "that
-boutique is a dropship front") it goes in the `store` block.
+per destination market, accumulating as sets (the read side of this is under "Offers in the
+response"). So "it finally arrived after three weeks, shipped from China, and they want returns
+sent to China" is a contribution, not just a complaint — and with no product on hand (an order in
+transit, a returns email, "that boutique is a dropship front") it goes in the `store` block.
 
 Physical world: if I show a photo of a label/product, **read the values and the EAN yourself
 and send only the extracted values** — the photo never leaves my machine. Look the product up
 by `ean` first, then contribute the `fields` you read with `"source": "label"` — **even when
-every field already carries a value**: a label transcription is producer-voice evidence and
-routinely outranks whatever a shop page or a bare assertion put there (see "Any confidence
-below 1.0" above). Pass each field's verbatim label text as `snippet`, in the label's own
-language — a label contribution without a snippet is just your bare word.
+every field already carries a value**, for the reason under "Any confidence below 1.0" above.
+Pass each field's verbatim label text as `snippet`, in the label's own language — a label
+contribution without a snippet is just your bare word.
 
 **Evidence is checked literally, so quote the page and not your reading of it.** Verification
 looks for your `snippet` in the page's text and for the `value` inside that snippet; a paraphrase
 is a substring of nothing, so the field bounces (`snippet_not_on_page`, `value_not_in_snippet`)
-and the value falls back to your bare word. Two consequences worth knowing before you submit:
+and the value falls back to your bare word. Three consequences worth knowing before you submit:
 
 - **Pull the raw text, never a summarising fetch tool's output.** Such a tool reflows and
   relabels as it reads — "Energia: 117 kJ" for a page that prints "Energy value: 117 kJ" — and
