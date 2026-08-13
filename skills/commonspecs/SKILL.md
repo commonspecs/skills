@@ -222,6 +222,20 @@ Each result carries `specs` — the product's values for the fields the ranking 
 and treat a long `missing_fields` as the finding it is: a product that discloses nothing has not
 merely failed to rank, it has told you something.
 
+**A search result is a contribution moment too, and the trigger is the page you open — not which
+tool you called.** "A hit is also a contribution moment" below is written around one product with
+its page in hand, so a ten-result list reads as a different situation and quietly falls outside it.
+It is not. The rule is: whenever you open a product page to judge something — to check a fabric
+weight, confirm a material, settle whether a shop ships here — read the values that fill that
+product's `missing_fields` while you are there, and `submit_contribution` per
+`context.contribution_mode`. Researching a recommendation and contributing are the same reading,
+done once.
+
+Scope it to the products you actually discuss — the ones you rank, compare or recommend — not all
+ten. A list is not a work order, and padding the catalogue with values you never verified is worse
+than leaving the gaps. But a product you researched well enough to recommend is one you researched
+well enough to record.
+
 Results are ranked best-first by spec quality (thin-data products sort last) and **prefer my
 market**: products with a confirmed offer where I buy come as the normal tier. When **no** product
 has a confirmed offer there, the same candidates return spec-ranked with a top-level
