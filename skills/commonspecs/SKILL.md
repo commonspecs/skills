@@ -160,7 +160,12 @@ warehouses, so each offer shows only its own market's observations — and the c
 observed there yet, not "ships from nowhere"). A storefront
 "based" in my country can still dispatch from and take returns in another — a non-local entry in
 `returns_to_countries` is the strongest dropship signal and often decides whether returning is
-economically viable, so surface it (and `dropshipping: true`) when I weigh a purchase.
+economically viable, so surface it (and `dropshipping: true`) when I weigh a purchase. The same
+per-market record carries the shop's **return conditions** (`return_shipping_paid_by`,
+`return_window_days`, `return_shipping_cost_observed` + currency, all `null` = unknown): who
+pays for the return decides a purchase with an uncertain size or fit, so surface it alongside
+the dropship signals — and remember EU law already puts the cost on the buyer by default, so
+`'seller'` is the promise worth naming while a 14-day window is just the statutory floor.
 
 An offer names the shop's home and the shop's owners as two different fields, and the server's own
 locality filter only knows the first: `local_only` narrows results to merchants **based** in my
@@ -354,6 +359,10 @@ answers to.
     delivery_days?: number      // door-to-door, whole days
     ships_from_country?: string // actually dispatched from, per tracking or sender label
     returns_to_country?: string // where the store told me to send a return
+    // return POLICY as stated for this market, read off the same page as the price —
+    // the cheapest moment to capture it (see "Return conditions" below):
+    return_shipping_paid_by?: 'seller' | 'buyer' | 'buyer_deducted_from_refund' | 'not_accepted'
+    return_window_days?: number
   }
 
   store?: {                // a shop fact — needs no product: alone or alongside the rest
@@ -366,9 +375,30 @@ answers to.
     dropshipping?: boolean // set when the fulfilment pattern shows it; omit when unknown
     ships_from_country?: string
     returns_to_country?: string
+    // return conditions for this market (see "Return conditions" below):
+    return_shipping_paid_by?: 'seller' | 'buyer' | 'buyer_deducted_from_refund' | 'not_accepted'
+    return_window_days?: number
+    return_shipping_cost_observed?: number // what a COMPLETED return actually cost — receipt
+                           // voice, never a policy quote; rejected without its currency
+    return_shipping_cost_currency?: string // ISO 4217; the two travel together
   }
 }
 ```
+
+**Return conditions are recorded per (store, destination market), like the rest of the
+fulfilment record** — the same chain offers free return labels in one market and deducts the
+label cost from the refund in another, so a fact filed without its market would be false
+somewhere. Who pays is the half that decides purchases: EU law defaults the direct cost of
+returning onto the buyer, so `'seller'` is a real promise while `'buyer'` merely restates the
+default. The window informs mostly above the EU's statutory 14-day floor — but "exactly 14"
+is itself worth recording. Two voices, two homes: the POLICY half (`return_shipping_paid_by`,
+`return_window_days`) is read off the shop's pages and rides the `offer` alongside the price,
+while the RECEIPT half (`return_shipping_cost_observed` + its currency, sent together or
+rejected) needs a completed return, so it belongs to the `store` block — "the label was 19 PLN,
+deducted from the refund" is a contribution, not just a complaint. Every one of these is a bare
+assertion with last-write-wins semantics, like `dropshipping`; surface them to me whenever I
+weigh a purchase against an uncertain size or fit, because a buyer-paid label on an 800-zł
+garment is half the decision.
 
 A shop that ships to several countries is several offers — one per destination you observed.
 
