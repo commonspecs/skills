@@ -172,20 +172,20 @@ it, never "domestic". Many prices across shops are all true at once —
 observations, never disputed against each other. Price is deliberately **not** part of the
 spec quality: weigh `landed_price` against the spec quality and my `user_goal` yourself.
 
-**A hit is also a contribution moment.** A miss obviously calls for seeding — but a *thin* hit
-calls for enrichment just as strongly: a non-empty `missing_fields`, fields flagged
+**A hit is also a contribution moment — a ranked search result as much as a lookup.** A miss
+obviously calls for seeding — but a *thin* hit calls for enrichment just as strongly: a non-empty `missing_fields`, fields flagged
 `needs_corroboration`, or anything in `enrichment_opportunities`. **Beware the emptiest hit of
 all:** a hit with `category: null` and empty `fields` has no schema, so the server *cannot*
 list its gaps — `missing_fields` and `enrichment_opportunities` come back empty even though
 the record holds nothing. Empty trigger lists on an uncategorised hit mean "everything is
 missing", not "nothing is": treat it exactly like a miss-seed — fetch the page, declare
-`category`, submit the specs. When you see any of these, don't
-stop at reporting the gaps: fetch the manufacturer's product page (and the store page I gave
-you), read the missing or unconfirmed values off it, and `submit_contribution` per
-`context.contribution_mode`. Every independent
-source corroborating a field raises its confidence toward 1.0, and every newly covered field closes
-a `missing_fields` gap — a lookup that leaves the record no better than it found it wastes a
-page you already had in hand.
+`category`, submit the specs. When you see any of these, don't stop at reporting the gaps: fetch
+the manufacturer's product page (and the store page I gave you), read the missing or unconfirmed
+values off it, and `submit_contribution` per `context.contribution_mode`. The trigger is the page
+you open to judge a product, not the tool that found it — so scope it to the products you actually
+rank, compare or recommend, never a whole page of results you never read. Every independent source
+raises a field's confidence toward 1.0, and every covered field closes a `missing_fields` gap:
+opening a page and leaving the record no better than you found it wastes the read.
 
 **Any confidence below 1.0 is an open request for evidence — and you are not the judge of
 whether yours is redundant.** `missing_fields` and `enrichment_opportunities` are the server's
